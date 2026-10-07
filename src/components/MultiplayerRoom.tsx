@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Presentation, SkipForward, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
 import { roomHelpers, realtimeHelpers, sessionHelpers } from '../insforge'
-import { Room, Player, Game, shuffledOrder } from '../types'
+import { Room, Player, Game, answersAreImagesOnly, shuffledOrder } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
 import PlayerAvatar from './PlayerAvatar'
 import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
-import QuestionMedia, { preloadQuestionImage } from './QuestionMedia'
+import AnswerTile, { AnswerThumbnail, answerGridClass } from './AnswerTile'
+import QuestionMedia, { preloadQuestionImages } from './QuestionMedia'
 
 interface MultiplayerRoomProps {
   room: Room
@@ -339,12 +340,11 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     else stopMusic()
   }, [phase, isHost, questionAudio, startMusic, stopMusic])
 
-  // La imagen se descarga durante la cuenta atrás, para que nadie pierda
-  // segundos de respuesta esperando a que cargue
-  const questionImage = question?.image_url
+  // Las imágenes se descargan durante la cuenta atrás, para que nadie pierda
+  // segundos de respuesta esperando a que carguen
   useEffect(() => {
-    preloadQuestionImage(questionImage)
-  }, [questionImage])
+    preloadQuestionImages(question)
+  }, [questionId])
 
   useEffect(() => stopMusic, [stopMusic])
 
@@ -521,6 +521,8 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     </div>
   )
 
+  const imageAnswers = !!question && answersAreImagesOnly(question.options, question.option_images)
+
   const renderQuestion = () => (
     <div className="flex-1 flex flex-col gap-4">
       <h2 className="bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center">
@@ -533,6 +535,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         audioUrl={question?.audio_url}
         autoPlay={!player || player.is_host}
         muted={isMuted}
+        largeImage={imageAnswers}
       />
 
       <div className="flex items-center justify-between gap-3">
@@ -574,13 +577,16 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         />
       </div>
 
-      <div className="grid grid-cols-2 auto-rows-fr gap-3 flex-1 max-h-[30rem] mt-auto">
+      <div className={answerGridClass(imageAnswers)}>
         {answerOrder.map((optionIndex, position) => (
-          <button
+          <AnswerTile
             key={optionIndex}
+            position={position}
+            text={question?.options[optionIndex] ?? ''}
+            imageUrl={question?.option_images?.[optionIndex]?.url}
             onClick={() => handleAnswer(optionIndex)}
             disabled={!player || selectedAnswer !== null}
-            className={`${ANSWER_STYLES[position].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all ${
+            className={
               !player
                 ? ''
                 : selectedAnswer === null
@@ -588,11 +594,8 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
                 : selectedAnswer === optionIndex
                   ? 'ring-4 ring-dominican-blue'
                   : 'opacity-60 saturate-50'
-            }`}
-          >
-            <AnswerBadge icon={ANSWER_STYLES[position].icon} color={ANSWER_STYLES[position].text} className="w-12 h-12 sm:w-14 sm:h-14" />
-            <span className="break-words">{question?.options[optionIndex]}</span>
-          </button>
+            }
+          />
         ))}
       </div>
     </div>
@@ -611,8 +614,10 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
             <p className="font-display text-3xl sm:text-4xl">
               {correctCount} de {players.length} {correctCount === 1 ? 'acertó' : 'acertaron'}
             </p>
-            <p className="font-bold text-white/95">
-              Respuesta correcta: {question?.options[question.correct_answer]}
+            <p className="flex items-center justify-center gap-2 font-bold text-white/95">
+              Respuesta correcta:
+              <AnswerThumbnail imageUrl={question?.option_images?.[question.correct_answer]?.url} />
+              {question?.options[question.correct_answer]}
             </p>
           </div>
         ) : (
@@ -669,6 +674,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
                 } ${selectedAnswer === optionIndex ? 'ring-4 ring-dominican-blue' : ''}`}
               >
                 <AnswerBadge icon={ANSWER_STYLES[position].icon} color={ANSWER_STYLES[position].text} className="w-7 h-7 sm:w-10 sm:h-10" />
+                <AnswerThumbnail imageUrl={question?.option_images?.[optionIndex]?.url} />
                 <span className="flex-1 break-words">{question?.options[optionIndex]}</span>
                 {isCorrect
                   ? <Check className="w-6 h-6 shrink-0" strokeWidth={4} />

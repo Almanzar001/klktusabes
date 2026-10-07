@@ -22,6 +22,8 @@ export interface OptimizedAudio extends OptimizedMedia {
 
 // 1280 px en el lado largo se ve nítido en un proyector y en pantallas retina
 const IMAGE_MAX_SIDE = 1280
+// Las imágenes de las respuestas se muestran en fichas, a menos tamaño
+export const OPTION_IMAGE_MAX_SIDE = 800
 // Solo se baja la calidad si la imagen pasa de este peso
 const IMAGE_TARGET_BYTES = 350 * 1024
 const IMAGE_QUALITIES = [0.82, 0.76, 0.7]
@@ -115,13 +117,13 @@ const encodeImage = async (canvas: HTMLCanvasElement, type: string) => {
   return lightest
 }
 
-export const optimizeImage = async (file: File): Promise<OptimizedImage> => {
+export const optimizeImage = async (file: File, maxSide = IMAGE_MAX_SIDE): Promise<OptimizedImage> => {
   if (!file.type.startsWith('image/')) throw new Error('Ese archivo no es una imagen')
   if (file.size > IMAGE_MAX_INPUT_BYTES) throw new Error('La imagen es demasiado pesada (máximo 40 MB)')
 
   const image = await decodeImage(file)
   try {
-    const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(image.width, image.height))
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
     const width = Math.max(1, Math.round(image.width * scale))
     const height = Math.max(1, Math.round(image.height * scale))
 

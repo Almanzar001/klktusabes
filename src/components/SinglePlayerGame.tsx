@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Play, Check, X, RotateCcw, Trophy, Volume2, VolumeX } from 'lucide-react'
 import { gameHelpers, qrResultsHelpers, insforge } from '../insforge'
-import { Game, Question, calculatePoints } from '../types'
+import { Game, Question, answersAreImagesOnly, calculatePoints } from '../types'
 import GameSelector from './GameSelector'
 import QRLeaderboard from './QRLeaderboard'
-import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
-import QuestionMedia, { preloadQuestionImage } from './QuestionMedia'
+import AnswerTile, { AnswerThumbnail, answerGridClass } from './AnswerTile'
+import QuestionMedia, { preloadQuestionImages } from './QuestionMedia'
 import { useGameSounds } from '../hooks/useGameSounds'
 
 interface SinglePlayerGameProps {
@@ -27,6 +27,8 @@ interface GameResult {
 
 interface ShuffledQuestion extends Question {
   shuffledOptions: string[]
+  // Imagen de cada respuesta, en el mismo orden mezclado; null si es solo texto
+  shuffledOptionImages: Array<string | null>
   correctAnswerIndex: number
 }
 
@@ -53,6 +55,9 @@ const shuffleQuestionOptions = (question: Question): ShuffledQuestion => {
 
   const shuffledOptionsWithIndex = shuffleArray(optionsWithIndex)
   const shuffledOptions = shuffledOptionsWithIndex.map(item => item.option)
+  const shuffledOptionImages = shuffledOptionsWithIndex.map(
+    item => question.option_images?.[item.originalIndex]?.url ?? null
+  )
 
   // Encontrar el nuevo índice de la respuesta correcta
   const correctAnswerIndex = shuffledOptionsWithIndex.findIndex(
@@ -62,6 +67,7 @@ const shuffleQuestionOptions = (question: Question): ShuffledQuestion => {
   return {
     ...question,
     shuffledOptions,
+    shuffledOptionImages,
     correctAnswerIndex
   }
 }
@@ -342,11 +348,11 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     else stopMusic()
   }, [gameState, questionAudioOpen, startMusic, stopMusic])
 
-  // La imagen se descarga durante la cuenta atrás para que ya esté al abrirse la pregunta
-  const questionImage = gameState === 'playing' ? currentQuestion?.image_url : null
+  // Las imágenes se descargan durante la cuenta atrás para que ya estén al abrirse la pregunta
+  const currentQuestionId = gameState === 'playing' ? currentQuestion?.id : undefined
   useEffect(() => {
-    preloadQuestionImage(questionImage)
-  }, [questionImage])
+    if (currentQuestionId) preloadQuestionImages(currentQuestion)
+  }, [currentQuestionId])
 
   const loadGames = async () => {
     try {
@@ -586,6 +592,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     const totalPoints = answers.reduce((total, answer) => total + answer.pointsEarned, 0)
     const lastAnswer = answers[answers.length - 1]
     const answeredCorrectly = selectedAnswer === currentShuffledQuestion.correctAnswerIndex
+    const imageAnswers = answersAreImagesOnly(currentShuffledQuestion.shuffledOptions, currentShuffledQuestion.shuffledOptionImages)
 
     return (
       <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
@@ -653,6 +660,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                   audioUrl={currentShuffledQuestion.audio_url}
                   autoPlay
                   muted={isMuted}
+                  largeImage={imageAnswers}
                 />
               )}
 
@@ -679,15 +687,18 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 auto-rows-fr gap-3 flex-1 max-h-[30rem] mt-auto">
+              <div className={answerGridClass(imageAnswers)}>
                 {currentShuffledQuestion.shuffledOptions.slice(0, 4).map((option, index) => {
                   const isSelected = selectedAnswer === index
                   return (
-                    <button
+                    <AnswerTile
                       key={index}
+                      position={index}
+                      text={option}
+                      imageUrl={currentShuffledQuestion.shuffledOptionImages[index]}
                       onClick={() => handleAnswerSelect(index)}
                       disabled={showAnswer}
-                      className={`${ANSWER_STYLES[index].bg} tablita relative flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all active:scale-95 ${
+                      className={`active:scale-95 ${
                         !showAnswer
                           ? 'hover:brightness-110 hover:-translate-y-0.5'
                           : isSelected
@@ -695,8 +706,6 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                             : 'opacity-60 saturate-50'
                       }`}
                     >
-                      <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-12 h-12 sm:w-14 sm:h-14" />
-                      <span className="break-words">{option}</span>
                       {/* Solo se marca la respuesta elegida: la correcta no se revela */}
                       {showAnswer && isSelected && (
                         <span className={`absolute top-2 right-2 rounded-full p-1 bg-white ${answeredCorrectly ? 'text-palma' : 'text-dominican-red'}`}>
@@ -705,7 +714,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                             : <X className="w-5 h-5" strokeWidth={4} />}
                         </span>
                       )}
-                    </button>
+                    </AnswerTile>
                   )
                 })}
               </div>
@@ -795,11 +804,20 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                       <p className="font-bold text-sm">
                         {question?.text}
                       </p>
-                      <p className="text-xs text-gray-600">
-                        {answer.selectedAnswer === -1
-                          ? 'Sin respuesta (tiempo agotado)'
-                          : `Tu respuesta: ${shuffledQuestions[answer.questionIndex]?.shuffledOptions[answer.selectedAnswer] || 'N/A'}`
-                        }
+                      <p className="flex items-center gap-2 text-xs text-gray-600">
+                        {answer.selectedAnswer === -1 ? (
+                          'Sin respuesta (tiempo agotado)'
+                        ) : (
+                          <>
+                            Tu respuesta:
+                            <AnswerThumbnail
+                              imageUrl={question?.shuffledOptionImages[answer.selectedAnswer]}
+                              className="h-8 w-11 border border-gray-200"
+                            />
+                            {question?.shuffledOptions[answer.selectedAnswer] ||
+                              (question?.shuffledOptionImages[answer.selectedAnswer] ? '' : 'N/A')}
+                          </>
+                        )}
                       </p>
                     </div>
 

@@ -20,11 +20,19 @@ export interface Game {
   questions?: Question[]
 }
 
+// Imagen de una respuesta: la URL la muestra y la clave permite borrarla
+export interface OptionImage {
+  url: string
+  key: string | null
+}
+
 export interface Question {
   id: string
   game_id: string
   text: string
-  options: string[] // Array de 4 opciones
+  options: string[] // Array de 4 opciones; el texto puede ir vacío si la respuesta tiene imagen
+  // Una entrada por respuesta, en el orden de `options`; null si es solo texto
+  option_images?: Array<OptionImage | null> | null
   correct_answer: number // Índice de la respuesta correcta (0-3)
   time_limit: number
   order_number: number
@@ -35,6 +43,10 @@ export interface Question {
   audio_key?: string | null
   created_at: string
 }
+
+// Las cuatro respuestas son solo imágenes, sin texto (por ejemplo, un test de figuras)
+export const answersAreImagesOnly = (options: string[], images?: Array<unknown | null> | null) =>
+  options.length > 0 && options.every((option, index) => !option.trim() && !!images?.[index])
 
 export interface Room {
   id: string

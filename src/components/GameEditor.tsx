@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { gameHelpers } from '../insforge'
 import { Game, Question } from '../types'
 import QuestionEditor from './QuestionEditor'
+import { AnswerThumbnail } from './AnswerTile'
 
 interface GameEditorProps {
   onBack: () => void
@@ -395,6 +396,10 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                                       : 'bg-gray-100'
                                   }`}
                                 >
+                                  <AnswerThumbnail
+                                    imageUrl={question.option_images?.[optIndex]?.url}
+                                    className="h-12 w-16 inline-block align-middle mr-2 border border-gray-200"
+                                  />
                                   {option}
                                   {optIndex === question.correct_answer && (
                                     <span className="ml-1">✓</span>

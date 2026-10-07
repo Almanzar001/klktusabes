@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Save, X, Image as ImageIcon, Clock, CheckCircle, Loader2, Music, Trash2, Upload } from 'lucide-react'
 import { gameHelpers, mediaHelpers } from '../insforge'
 import { Game, Question, DEFAULT_QUESTION_TIME } from '../types'
+import { AnswerThumbnail } from './AnswerTile'
 import {
   AUDIO_MAX_SECONDS,
+  OPTION_IMAGE_MAX_SIDE,
   DecodedAudio,
   OptimizedAudio,
   OptimizedImage,
@@ -60,6 +62,11 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
   // Audio original ya leído, para poder elegir otro fragmento sin volver a abrirlo
   const [audioSource, setAudioSource] = useState<DecodedAudio | null>(null)
   const [audioStart, setAudioStart] = useState(0)
+  // Imágenes de las respuestas: la que cada una tenía guardada y la recién elegida
+  const [savedOptionImages, setSavedOptionImages] = useState<Array<SavedMedia | null>>([null, null, null, null])
+  const [optionDrafts, setOptionDrafts] = useState<Array<ImageDraft | null>>([null, null, null, null])
+  const [optionBusy, setOptionBusy] = useState<number | null>(null)
+  const [optionImageError, setOptionImageError] = useState<string | null>(null)
   const audioJob = useRef<AbortController | null>(null)
   const audioStartTimer = useRef<number>()
   const audioPreviewUrl = useRef<string>()
@@ -79,6 +86,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
       setTimeLimit(question.time_limit)
       setSavedImage(question.image_url ? { url: question.image_url, key: question.image_key ?? null } : null)
       setSavedAudio(question.audio_url ? { url: question.audio_url, key: question.audio_key ?? null } : null)
+      setSavedOptionImages([0, 1, 2, 3].map(index => question.option_images?.[index] ?? null))
     }
   }, [question])
 
@@ -107,7 +115,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
 
   const imageSrc = imageDraft?.previewUrl ?? savedImage?.url ?? null
   const audioSrc = audioDraft?.previewUrl ?? savedAudio?.url ?? null
-  const mediaBusy = imageBusy || audioBusy
+  const optionImageSrc = (index: number) => optionDrafts[index]?.previewUrl ?? savedOptionImages[index]?.url ?? null
+  const mediaBusy = imageBusy || audioBusy || optionBusy !== null
 
   // Elegir imagen: se optimiza al momento y se sube al guardar
   const handleImageFile = async (file?: File) => {
@@ -200,10 +209,36 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
     setAudioError(null)
   }
 
+  // Imagen de una respuesta: se optimiza al elegirla y se sube al guardar
+  const handleOptionImageFile = async (index: number, file?: File) => {
+    if (!file || optionBusy !== null) return
+
+    setOptionBusy(index)
+    setOptionImageError(null)
+    try {
+      const optimized = await optimizeImage(file, OPTION_IMAGE_MAX_SIDE)
+      releasePreviewUrl(optionDrafts[index]?.previewUrl)
+      const draft = { ...optimized, previewUrl: createPreviewUrl(optimized.blob) }
+      setOptionDrafts(previous => previous.map((item, i) => (i === index ? draft : item)))
+    } catch (err) {
+      setOptionImageError(`Opción ${index + 1}: ${err instanceof Error ? err.message : 'no se pudo procesar la imagen'}`)
+    } finally {
+      setOptionBusy(null)
+    }
+  }
+
+  const handleRemoveOptionImage = (index: number) => {
+    releasePreviewUrl(optionDrafts[index]?.previewUrl)
+    setOptionDrafts(previous => previous.map((item, i) => (i === index ? null : item)))
+    setSavedOptionImages(previous => previous.map((item, i) => (i === index ? null : item)))
+    setOptionImageError(null)
+  }
+
   // Validar formulario
   const isFormValid = () => {
     if (!questionText.trim()) return false
-    if (options.some(option => !option.trim())) return false
+    // cada respuesta necesita texto o imagen
+    if (options.some((option, index) => !option.trim() && !optionImageSrc(index))) return false
     if (correctAnswer < 0 || correctAnswer > 3) return false
     if (timeLimit < 5 || timeLimit > 120) return false
     return true
@@ -262,6 +297,23 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
         audio = data
       }
 
+      // Subir las imágenes nuevas de las respuestas
+      const optionImages = [...savedOptionImages]
+      const optionUploads = await Promise.all(
+        optionDrafts.map(draft => (draft ? mediaHelpers.upload(game.id, 'respuesta', draft.blob, draft.extension) : null))
+      )
+      optionUploads.forEach((upload, index) => {
+        if (upload?.data) {
+          uploadedKeys.push(upload.data.key)
+          optionImages[index] = upload.data
+        }
+      })
+      const failedOption = optionUploads.findIndex(upload => upload && (upload.error || !upload.data))
+      if (failedOption !== -1) {
+        setError(`No se pudo subir la imagen de la opción ${failedOption + 1}: ${optionUploads[failedOption]?.error?.message || 'error desconocido'}`)
+        return
+      }
+
       // Obtener el número de orden para la nueva pregunta
       const orderNumber = question?.order_number || (game.questions?.length || 0) + 1
 
@@ -274,7 +326,10 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
         image_url: image?.url ?? null,
         image_key: image?.key ?? null,
         audio_url: audio?.url ?? null,
-        audio_key: audio?.key ?? null
+        audio_key: audio?.key ?? null,
+        option_images: optionImages.some(Boolean)
+          ? optionImages.map(optionImage => (optionImage ? { url: optionImage.url, key: optionImage.key } : null))
+          : null
       }
 
 
@@ -347,9 +402,11 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
       saved = true
 
       // Los archivos que la pregunta tenía antes y ya no usa sobran
+      const keptOptionKeys = new Set(optionImages.map(optionImage => optionImage?.key))
       await mediaHelpers.remove([
         question?.image_key !== image?.key ? question?.image_key : null,
-        question?.audio_key !== audio?.key ? question?.audio_key : null
+        question?.audio_key !== audio?.key ? question?.audio_key : null,
+        ...(question?.option_images ?? []).map(optionImage => (keptOptionKeys.has(optionImage?.key) ? null : optionImage?.key))
       ])
 
       onSave()
@@ -454,8 +511,11 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                       index === correctAnswer ? 'answer-option-correct' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span>{option || `Opción ${index + 1}`}</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-3">
+                        <AnswerThumbnail imageUrl={optionImageSrc(index)} className="h-20 w-28 border border-gray-200" />
+                        {option || (optionImageSrc(index) ? '' : `Opción ${index + 1}`)}
+                      </span>
                       {index === correctAnswer && (
                         <CheckCircle className="w-5 h-5 text-palma" />
                       )}
@@ -713,10 +773,13 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
 
             {/* Opciones de respuesta */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-display text-dominican-blue mb-6">
+              <h2 className="text-xl font-display text-dominican-blue mb-1">
                 Opciones de Respuesta
               </h2>
-              
+              <p className="text-sm text-gray-500 mb-6">
+                Cada respuesta puede llevar texto, imagen o las dos cosas. Las imágenes sirven, por ejemplo, para las figuras de un test de CI.
+              </p>
+
               <div className="space-y-4">
                 {options.map((option, index) => (
                   <div key={index} className="relative">
@@ -739,10 +802,32 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                             ? 'border-palma/40 bg-palma/10'
                             : 'border-gray-300'
                         }`}
-                        placeholder={`Escribe la opción ${index + 1}...`}
+                        placeholder={optionImageSrc(index) ? 'Texto (opcional)' : `Escribe la opción ${index + 1}...`}
                         maxLength={200}
                       />
-                      
+
+                      <label
+                        className={`p-3 rounded-lg transition-colors ${
+                          optionImageSrc(index)
+                            ? 'bg-larimar text-white'
+                            : 'bg-gray-200 text-gray-600 hover:bg-larimar/30'
+                        } ${optionBusy !== null ? 'opacity-50' : 'cursor-pointer'}`}
+                        title={optionImageSrc(index) ? 'Cambiar la imagen de esta respuesta' : 'Poner una imagen como respuesta'}
+                      >
+                        {optionBusy === index ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          disabled={optionBusy !== null}
+                          aria-label={`Imagen de la opción ${index + 1}`}
+                          onChange={(e) => {
+                            handleOptionImageFile(index, e.target.files?.[0])
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+
                       <button
                         onClick={() => setCorrectAnswer(index)}
                         className={`p-3 rounded-lg transition-colors ${
@@ -756,12 +841,41 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                       </button>
                     </div>
                     
+                    {optionImageSrc(index) && (
+                      <div className="mt-2 flex items-center gap-3 border border-gray-200 rounded-lg p-2 bg-arena/60">
+                        <AnswerThumbnail imageUrl={optionImageSrc(index)} className="h-20 w-28 border border-gray-200" />
+                        <p className="flex-1 text-xs font-semibold text-gray-600">
+                          {optionDrafts[index] ? (
+                            <>
+                              <span className="text-palma">Optimizada</span>
+                              {' · '}
+                              {savingsLabel(optionDrafts[index]!.originalBytes, optionDrafts[index]!.bytes)}
+                            </>
+                          ) : (
+                            'Imagen guardada'
+                          )}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOptionImage(index)}
+                          className="flex items-center gap-1 text-sm font-bold text-dominican-red hover:underline"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+
                     <div className="text-right text-xs text-gray-500 mt-1">
                       {option.length}/200
                     </div>
                   </div>
                 ))}
               </div>
+
+              {optionImageError && (
+                <p className="mt-2 text-sm font-semibold text-dominican-red">{optionImageError}</p>
+              )}
 
               {/* Instrucciones */}
               <div className="mt-6 p-4 bg-arena border border-dominican-blue/20 rounded-lg">

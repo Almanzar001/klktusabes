@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Pause, Play, RotateCcw } from 'lucide-react'
+import { Question } from '../types'
 
 interface QuestionMediaProps {
   imageUrl?: string | null
@@ -10,15 +11,21 @@ interface QuestionMediaProps {
   autoPlay?: boolean
   // Con el juego silenciado el sonido no arranca solo
   muted?: boolean
+  // La imagen es lo principal de la pregunta (las respuestas son figuras): se muestra más grande
+  largeImage?: boolean
 }
 
-// Descarga la imagen por adelantado para que ya esté al abrirse la pregunta
-export const preloadQuestionImage = (imageUrl?: string | null) => {
-  if (imageUrl) new Image().src = imageUrl
+// Descarga por adelantado las imágenes de la pregunta y de sus respuestas,
+// para que ya estén al abrirse la pregunta
+export const preloadQuestionImages = (question?: Pick<Question, 'image_url' | 'option_images'> | null) => {
+  const urls = [question?.image_url, ...(question?.option_images ?? []).map(image => image?.url)]
+  urls.forEach(url => {
+    if (url) new Image().src = url
+  })
 }
 
 // Imagen y sonido de una pregunta durante la partida
-const QuestionMedia: React.FC<QuestionMediaProps> = ({ imageUrl, audioUrl, autoPlay = false, muted = false }) => {
+const QuestionMedia: React.FC<QuestionMediaProps> = ({ imageUrl, audioUrl, autoPlay = false, muted = false, largeImage = false }) => {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [finished, setFinished] = useState(false)
@@ -64,7 +71,7 @@ const QuestionMedia: React.FC<QuestionMediaProps> = ({ imageUrl, audioUrl, autoP
           alt="Imagen de la pregunta"
           decoding="async"
           onError={() => setImageFailed(true)}
-          className="max-h-44 sm:max-h-64 max-w-full rounded-2xl shadow-lg object-contain"
+          className={`${largeImage ? 'max-h-60 sm:max-h-[38vh]' : 'max-h-44 sm:max-h-64'} max-w-full rounded-2xl shadow-lg object-contain`}
         />
       )}
 

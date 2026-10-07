@@ -114,7 +114,7 @@ const randomId = () => {
 
 export const mediaHelpers = {
   // Sube un archivo ya optimizado (ver media.ts)
-  upload: async (gameId: string, kind: 'imagen' | 'sonido', blob: Blob, extension: string) => {
+  upload: async (gameId: string, kind: 'imagen' | 'sonido' | 'respuesta', blob: Blob, extension: string) => {
     try {
       const name = `${kind}-${randomId()}.${extension}`
       const file = new File([blob], name, { type: blob.type })
@@ -151,6 +151,13 @@ export const mediaHelpers = {
     )
   }
 }
+
+// Claves de todos los archivos de una pregunta: imagen, sonido e imágenes de sus respuestas
+const questionMediaKeys = (question: any): Array<string | null | undefined> => [
+  question.image_key,
+  question.audio_key,
+  ...(Array.isArray(question.option_images) ? question.option_images.map((image: any) => image?.key) : [])
+]
 
 // Funciones para juegos
 export const gameHelpers = {
@@ -260,7 +267,7 @@ export const gameHelpers = {
       // Al borrar el juego se van sus preguntas; sus archivos hay que borrarlos aparte
       const { data: media } = await db
         .from('questions')
-        .select('image_key, audio_key')
+        .select('image_key, audio_key, option_images')
         .eq('game_id', gameId)
 
       const { data: deleted, error } = await db
@@ -274,7 +281,7 @@ export const gameHelpers = {
       }
 
       if (deleted?.length && media) {
-        await mediaHelpers.remove(media.flatMap((question: any) => [question.image_key, question.audio_key]))
+        await mediaHelpers.remove(media.flatMap(questionMediaKeys))
       }
 
       return { data: { success: true }, error: null }
@@ -387,14 +394,14 @@ export const gameHelpers = {
         .from('questions')
         .delete()
         .eq('id', questionId)
-        .select('image_key, audio_key')
+        .select('image_key, audio_key, option_images')
 
       if (error) {
         return { data: null, error }
       }
 
-      // con la pregunta se van su imagen y su sonido
-      await mediaHelpers.remove((deleted ?? []).flatMap((question: any) => [question.image_key, question.audio_key]))
+      // con la pregunta se van sus imágenes y su sonido
+      await mediaHelpers.remove((deleted ?? []).flatMap(questionMediaKeys))
 
       return { data: { success: true }, error: null }
 
