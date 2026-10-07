@@ -85,7 +85,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     isMuted,
     initializeAudio,
     isAudioEnabled
-  } = useGameSounds()
+  } = useGameSounds({ playsAloud: !player || player.is_host })
 
   const roomId = initialRoom.id
   // Sin jugador propio se está dirigiendo la partida: se controla el ritmo pero no se responde
