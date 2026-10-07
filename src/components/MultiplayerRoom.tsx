@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Users, Crown, Play } from 'lucide-react'
 // import { useAuth } from '../contexts/AuthContext' // Currently unused
-import { roomHelpers, realtimeHelpers, gameHelpers, supabase } from '../supabase'
+import { roomHelpers, realtimeHelpers, gameHelpers, insforge } from '../insforge'
 import { Room, Player, Game } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
 import GameSelector from './GameSelector'
@@ -312,30 +312,26 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     }
   }, [room.id, player.is_host, roomState, currentQuestionIndex, showAnswer])
 
-  // Suscribirse a canal de Supabase Real-time para sincronización de estado del juego
+  // Suscribirse al canal en tiempo real de la sala para sincronización de estado del juego
   useEffect(() => {
     if (!room.id) return
 
-    const channelName = `game-sync-${room.id}`
-    console.log(`📡 [${player.name}] Setting up Supabase Real-time channel: ${channelName}`)
+    console.log(`📡 [${player.name}] Setting up real-time game sync for room: ${room.id}`)
     
-    const channel = supabase.channel(channelName)
-    
-    channel.on('broadcast', { event: 'game_state_sync' }, (payload) => {
-      console.log(`📡 [${player.name}] Supabase Real-time message received:`, payload)
+    const syncSubscription = realtimeHelpers.subscribeToGameSync(room.id, 'game_state_sync', (data) => {
+      console.log(`📡 [${player.name}] Real-time message received:`, data)
       
       if (player.is_host) {
         console.log(`📡 [${player.name}] Host ignoring own sync message`)
         return
       }
       
-      const data = payload.payload
       if (!data || data.sender === player.name) {
         console.log(`📡 [${player.name}] Ignoring message from self`)
         return
       }
       
-      console.log(`🔄 [${player.name}] Processing Supabase sync:`, data)
+      console.log(`🔄 [${player.name}] Processing InsForge sync:`, data)
       
       // Procesar el mensaje de sincronización igual que BroadcastChannel
       if (data.type === 'GAME_STATE_SYNC') {
@@ -349,11 +345,11 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           questionStartTime: syncedStartTime // Timestamp sincronizado del host
         } = data
         
-        console.log(`🔄 [${player.name}] Supabase sync: Q${currentQuestionIndex} → Q${questionIndex}`)
+        console.log(`🔄 [${player.name}] InsForge sync: Q${currentQuestionIndex} → Q${questionIndex}`)
         
         // Ignorar mensajes duplicados o antiguos
         if (timestamp && timestamp <= lastSyncTimestamp) {
-          console.log(`📝 [${player.name}] Ignoring old Supabase sync message`)
+          console.log(`📝 [${player.name}] Ignoring old InsForge sync message`)
           return
         }
         
@@ -363,14 +359,14 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         
         // Manejar fin del juego
         if (gameEnded) {
-          console.log(`🏁 [${player.name}] Supabase sync: Game ended`)
+          console.log(`🏁 [${player.name}] InsForge sync: Game ended`)
           setRoomState('results')
           setGameState('leaderboard')
           return
         }
         
         // Sincronizar estado
-        console.log(`🔄 [${player.name}] Supabase syncing: Q${currentQuestionIndex} → Q${questionIndex}, gameState: ${newGameState}, showAnswer: ${newShowAnswer}`)
+        console.log(`🔄 [${player.name}] InsForge syncing: Q${currentQuestionIndex} → Q${questionIndex}, gameState: ${newGameState}, showAnswer: ${newShowAnswer}`)
         
         setCurrentQuestionIndex(questionIndex)
         setGameState(newGameState)
@@ -386,10 +382,10 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           
           // Usar el questionStartTime sincronizado del host si está disponible
           if (syncedStartTime) {
-            console.log(`⏰ [${player.name}] Supabase: Using synced start time from host: ${syncedStartTime}`)
+            console.log(`⏰ [${player.name}] InsForge: Using synced start time from host: ${syncedStartTime}`)
             setQuestionStartTime(syncedStartTime)
           } else {
-            console.log(`⏰ [${player.name}] Supabase: No synced start time, using current time`)
+            console.log(`⏰ [${player.name}] InsForge: No synced start time, using current time`)
             setQuestionStartTime(Date.now())
           }
         }
@@ -397,15 +393,14 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         setWaitingForPlayers(false)
         setError(null)
         
-        console.log(`✅ [${player.name}] Supabase sync completed to question ${questionIndex + 1}, timeLeft: ${newTimeLeft}s`)
+        console.log(`✅ [${player.name}] InsForge sync completed to question ${questionIndex + 1}, timeLeft: ${newTimeLeft}s`)
       }
     })
     
     // Escuchar respuestas de otros jugadores
-    channel.on('broadcast', { event: 'player_answer' }, (payload) => {
-      console.log(`📡 [${player.name}] Player answer received:`, payload)
+    const answerSubscription = realtimeHelpers.subscribeToGameSync(room.id, 'player_answer', (data) => {
+      console.log(`📡 [${player.name}] Player answer received:`, data)
       
-      const data = payload.payload
       if (!data || data.player_id === player.id) {
         console.log(`📡 [${player.name}] Ignoring own answer`)
         return
@@ -432,13 +427,10 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
       }
     })
     
-    channel.subscribe((status) => {
-      console.log(`📡 [${player.name}] Supabase channel status:`, status)
-    })
-    
     return () => {
-      console.log(`📡 [${player.name}] Cleaning up Supabase Real-time channel`)
-      supabase.removeChannel(channel)
+      console.log(`📡 [${player.name}] Cleaning up real-time game sync`)
+      realtimeHelpers.unsubscribe(syncSubscription)
+      realtimeHelpers.unsubscribe(answerSubscription)
     }
   }, [room.id, player.name, player.is_host, currentQuestionIndex, lastSyncTimestamp])
 
@@ -470,16 +462,11 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           timestamp: Date.now()
         }
         
-        // Enviar via Supabase Real-time
-        const channel = supabase.channel(`game-sync-${room.id}`)
-        channel.send({
-          type: 'broadcast',
-          event: 'game_state_sync',
-          payload: {
-            ...broadcastMessage,
-            sender: player.name,
-            room_id: room.id
-          }
+        // Enviar via InsForge Realtime
+        realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
+          ...broadcastMessage,
+          sender: player.name,
+          room_id: room.id
         }).then(() => {
           console.log(`✅ [HOST-${player.name}] Show answer state broadcasted`)
         }).catch((err) => {
@@ -729,7 +716,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         console.log('🔄 Found game_id:', sessionData.game_id, 'trying direct fetch...')
         
         // Usar el game_id para obtener el juego completo
-        const { data: gameData, error: gameError } = await supabase
+        const { data: gameData, error: gameError } = await insforge.database
           .from('games')
           .select('*, questions(*)')
           .eq('id', sessionData.game_id)
@@ -887,22 +874,17 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
       playIncorrect()
     }
 
-    // Enviar respuesta a todos los jugadores via Supabase Real-time
+    // Enviar respuesta a todos los jugadores via InsForge Realtime
     try {
       console.log(`📤 [${player.name}] Sending answer to other players`)
-      const channel = supabase.channel(`game-sync-${room.id}`)
-      channel.send({
-        type: 'broadcast',
-        event: 'player_answer',
-        payload: {
-          player_id: player.id,
-          player_name: player.name,
-          answer_index: answerIndex,
-          answer_time: answerTime,
-          question_index: currentQuestionIndex,
-          room_id: room.id,
-          timestamp: Date.now()
-        }
+      realtimeHelpers.sendGameSync(room.id, 'player_answer', {
+        player_id: player.id,
+        player_name: player.name,
+        answer_index: answerIndex,
+        answer_time: answerTime,
+        question_index: currentQuestionIndex,
+        room_id: room.id,
+        timestamp: Date.now()
       }).then(() => {
         console.log(`✅ [${player.name}] Answer sent to other players`)
       }).catch((err) => {
@@ -955,19 +937,16 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
       
       // Enviar respuesta "sin respuesta" a otros jugadores
       try {
-        const channel = supabase.channel(`game-sync-${room.id}`)
-        channel.send({
-          type: 'broadcast',
-          event: 'player_answer',
-          payload: {
-            player_id: player.id,
-            player_name: player.name,
-            answer_index: null, // Sin respuesta por tiempo agotado
-            answer_time: timeLimit * 1000,
-            question_index: currentQuestionIndex,
-            room_id: room.id,
-            timestamp: Date.now()
-          }
+        realtimeHelpers.sendGameSync(room.id, 'player_answer', {
+          player_id: player.id,
+          player_name: player.name,
+          answer_index: null, // Sin respuesta por tiempo agotado
+          answer_time: timeLimit * 1000,
+          question_index: currentQuestionIndex,
+          room_id: room.id,
+          timestamp: Date.now()
+        }).catch((err) => {
+          console.error('Error sending timeout answer:', err)
         })
       } catch (err) {
         console.error('Error sending timeout answer:', err)
@@ -1067,7 +1046,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         // MÉTODO PRINCIPAL: Actualizar base de datos para sincronización confiable
         try {
           console.log(`💾 [HOST-${player.name}] Updating room current_question_index for sync`)
-          supabase
+          insforge.database
             .from('rooms')
             .update({ 
               current_question_index: nextIndex
@@ -1084,18 +1063,13 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           console.error('Error in database sync:', err)
         }
         
-        // MÉTODO ADICIONAL: Usar Supabase Real-time para comunicación inmediata
+        // MÉTODO ADICIONAL: Usar InsForge Realtime para comunicación inmediata
         try {
-          console.log(`📡 [HOST-${player.name}] Sending real-time sync via Supabase channel`)
-          const channel = supabase.channel(`game-sync-${room.id}`)
-          channel.send({
-            type: 'broadcast',
-            event: 'game_state_sync',
-            payload: {
-              ...broadcastMessage,
-              sender: player.name,
-              room_id: room.id
-            }
+          console.log(`📡 [HOST-${player.name}] Sending real-time sync via InsForge channel`)
+          realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
+            ...broadcastMessage,
+            sender: player.name,
+            room_id: room.id
           }).then(() => {
             console.log(`✅ [HOST-${player.name}] Real-time message sent`)
           }).catch((err) => {
@@ -1132,20 +1106,15 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           }, i * 200)
         }
         
-        // MÉTODO ADICIONAL: Enviar via Supabase Real-time para mayor confiabilidad
+        // MÉTODO ADICIONAL: Enviar via InsForge Realtime para mayor confiabilidad
         try {
-          console.log(`📡 [HOST-${player.name}] Sending game end via Supabase Real-time`)
-          const channel = supabase.channel(`game-sync-${room.id}`)
-          channel.send({
-            type: 'broadcast',
-            event: 'game_state_sync',
-            payload: {
-              ...broadcastMessage,
-              sender: player.name,
-              room_id: room.id
-            }
+          console.log(`📡 [HOST-${player.name}] Sending game end via InsForge Realtime`)
+          realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
+            ...broadcastMessage,
+            sender: player.name,
+            room_id: room.id
           }).then(() => {
-            console.log(`✅ [HOST-${player.name}] Game end message sent via Supabase`)
+            console.log(`✅ [HOST-${player.name}] Game end message sent via InsForge`)
           }).catch((err) => {
             console.error('Error sending game end message:', err)
           })

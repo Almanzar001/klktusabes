@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Image as ImageIcon, Clock, CheckCircle } from 'lucide-react'
-import { gameHelpers } from '../supabase'
+import { gameHelpers } from '../insforge'
 import { Game, Question, DEFAULT_QUESTION_TIME } from '../types'
 
 interface QuestionEditorProps {
@@ -97,7 +97,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           let errorMessage = 'Error al actualizar la pregunta'
           
           if (error && typeof error === 'object' && 'code' in error && error.code === 'TIMEOUT') {
-            errorMessage = 'La operación tardó demasiado tiempo. Posibles causas:\n• Problemas de conexión a internet\n• Configuración incorrecta de Supabase\n• Problemas con los permisos de la base de datos'
+            errorMessage = 'La operación tardó demasiado tiempo. Posibles causas:\n• Problemas de conexión a internet\n• Configuración incorrecta de InsForge\n• Problemas con los permisos de la base de datos'
           } else if (typeof error === 'object' && error.message) {
             errorMessage += `: ${error.message}`
           } else if (typeof error === 'string') {
@@ -128,7 +128,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           let errorMessage = 'Error al guardar la pregunta'
           
           if (error && typeof error === 'object' && 'code' in error && error.code === 'TIMEOUT') {
-            errorMessage = 'La operación tardó demasiado tiempo. Posibles causas:\n• Problemas de conexión a internet\n• Configuración incorrecta de Supabase\n• Problemas con los permisos de la base de datos'
+            errorMessage = 'La operación tardó demasiado tiempo. Posibles causas:\n• Problemas de conexión a internet\n• Configuración incorrecta de InsForge\n• Problemas con los permisos de la base de datos'
           } else if (typeof error === 'object' && error.message) {
             errorMessage += `: ${error.message}`
           } else if (typeof error === 'string') {

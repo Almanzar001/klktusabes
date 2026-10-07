@@ -8,7 +8,7 @@ Una aplicación de trivia interactiva inspirada en Kahoot!, desarrollada especí
 
 - **🎮 Modos de Juego Múltiples**: Salas multijugador, juego individual y acceso directo por QR
 - **🇩🇴 Diseño Dominicano**: Colores patrios oficiales y tema cultural local
-- **⚡ Tiempo Real**: Sincronización instantánea con Supabase Realtime
+- **⚡ Tiempo Real**: Sincronización instantánea con InsForge Realtime
 - **👥 Multijugador**: Hasta 20 jugadores por sala con avatares personalizados
 - **🔊 Efectos de Sonido**: Sistema de audio inmersivo para mejor experiencia
 - **📱 Responsive**: Funciona perfectamente en móviles, tablets y desktop
@@ -20,9 +20,9 @@ Una aplicación de trivia interactiva inspirada en Kahoot!, desarrollada especí
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **Styling**: Tailwind CSS con tema dominicano personalizado
-- **Base de Datos**: Supabase (PostgreSQL)
-- **Real-time**: Supabase Realtime WebSockets
-- **Autenticación**: Supabase Auth con Google OAuth
+- **Base de Datos**: InsForge (PostgreSQL)
+- **Real-time**: InsForge Realtime (WebSockets)
+- **Autenticación**: InsForge Auth (email/contraseña y Google OAuth)
 - **QR Codes**: Librería `qrcode`
 - **Iconos**: Lucide React
 - **Audio**: Web Audio API
@@ -33,7 +33,7 @@ Una aplicación de trivia interactiva inspirada en Kahoot!, desarrollada especí
 
 - Node.js 18 o superior
 - npm o yarn
-- Cuenta en [Supabase](https://supabase.com)
+- Cuenta en [InsForge](https://insforge.dev)
 - Cuenta de Google (para OAuth)
 
 ### 1. Clonar el Repositorio
@@ -57,21 +57,32 @@ Copia el archivo de ejemplo y configura tus credenciales:
 cp .env.example .env
 ```
 
-Edita `.env` con tus credenciales de Supabase:
+Edita `.env` con tus credenciales de InsForge:
 
 ```env
-VITE_SUPABASE_URL=tu_supabase_project_url
-VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
+VITE_INSFORGE_URL=https://tu-app.region.insforge.app
+VITE_INSFORGE_ANON_KEY=tu_insforge_anon_key
 ```
 
-### 4. Configurar Supabase
+### 4. Configurar InsForge
 
-1. Ve a [Supabase](https://supabase.com) y crea un nuevo proyecto
-2. Ve a **Settings** → **API** y copia la Project URL y Project API Key
-3. En **SQL Editor**, ejecuta el script completo:
+1. Crea un proyecto en [InsForge](https://insforge.dev) y enlázalo con este directorio:
 
-```sql
--- Copia y pega todo el contenido de setup_complete_database.sql
+```bash
+npx @insforge/cli login
+npx @insforge/cli link --project-id <id-del-proyecto>
+```
+
+2. Aplica el esquema (tablas, RLS, triggers y canales de realtime) desde `migrations/`:
+
+```bash
+npx @insforge/cli db migrations up --all
+```
+
+3. La URL del backend está en el campo `oss_host` de `.insforge/project.json`; la anon key se obtiene con:
+
+```bash
+npx @insforge/cli secrets get ANON_KEY
 ```
 
 ### 5. Configurar Google OAuth
@@ -83,9 +94,9 @@ VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 5. Configura las URLs de redirección:
    ```
    http://localhost:3000
-   https://tu-proyecto.supabase.co/auth/v1/callback
+   https://tu-app.region.insforge.app/api/auth/oauth/google/callback
    ```
-6. En Supabase, ve a **Authentication** → **Providers**
+6. En el dashboard de InsForge, ve a **Authentication** → **Auth Methods**
 7. Habilita **Google** y agrega tu Client ID y Client Secret
 
 ### 6. Ejecutar en Desarrollo
@@ -109,9 +120,9 @@ La aplicación estará disponible en `http://localhost:3000`
 
 ### Para Creadores
 
-1. **Obtener Permisos**: Después del primer login, ejecuta en Supabase:
-   ```sql
-   UPDATE user_profiles SET role = 'creador' WHERE email = 'tu-email@gmail.com';
+1. **Obtener Permisos**: Después del primer login, ejecuta con el CLI de InsForge:
+   ```bash
+   npx @insforge/cli db query "UPDATE user_profiles SET role = 'creador' WHERE email = 'tu-email@gmail.com'"
    ```
 
 2. **Crear Contenido**:
@@ -183,8 +194,8 @@ export const AVAILABLE_AVATARS = [
    ```
 
 2. **Configurar variables de entorno**:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_INSFORGE_URL`
+   - `VITE_INSFORGE_ANON_KEY`
 
 3. **Actualizar URLs de OAuth** en Google Cloud Console:
    ```
@@ -228,10 +239,11 @@ klktusabes/
 │   │   └── useGameSounds.ts   # Hook para efectos de sonido
 │   ├── App.tsx                # Componente principal
 │   ├── main.tsx              # Punto de entrada
-│   ├── supabase.ts           # Configuración de Supabase
+│   ├── insforge.ts           # Cliente de InsForge y acceso a datos
 │   ├── types.ts              # Tipos TypeScript
 │   └── index.css             # Estilos globales
-├── setup_complete_database.sql # Script de configuración de BD
+├── migrations/                 # Migraciones de InsForge (esquema, RLS, realtime)
+├── setup_complete_database.sql # Script original de Supabase (histórico)
 ├── package.json              # Dependencias
 ├── tailwind.config.js        # Configuración de Tailwind
 ├── vite.config.ts           # Configuración de Vite
@@ -266,7 +278,7 @@ El hook `useGameSounds` proporciona:
 
 ### Tiempo Real
 
-Eventos monitoreados con Supabase Realtime:
+Eventos publicados por triggers de la base de datos en el canal `room:<id>` de InsForge Realtime:
 
 - Cambios en jugadores de salas
 - Actualizaciones de estado de salas
@@ -352,7 +364,7 @@ Este proyecto está bajo la **Licencia MIT**. Consulta el archivo [LICENSE](LICE
 - [TypeScript](https://www.typescriptlang.org) - Tipado estático
 - [Vite](https://vitejs.dev) - Build tool y dev server
 - [Tailwind CSS](https://tailwindcss.com) - Framework de CSS
-- [Supabase](https://supabase.com) - Backend como servicio
+- [InsForge](https://insforge.dev) - Backend como servicio
 - [Lucide React](https://lucide.dev) - Iconos
 - [QRCode](https://github.com/soldair/node-qrcode) - Generación de códigos QR
 

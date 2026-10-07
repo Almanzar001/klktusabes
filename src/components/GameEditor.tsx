@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { gameHelpers } from '../supabase'
+import { gameHelpers } from '../insforge'
 import { Game, Question } from '../types'
 import QuestionEditor from './QuestionEditor'
 

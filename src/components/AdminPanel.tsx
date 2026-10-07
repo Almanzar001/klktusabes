@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Settings, Gamepad2, QrCode, BarChart3, Users, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { statsHelpers } from '../supabase'
+import { statsHelpers } from '../insforge'
 import GameEditor from './GameEditor'
 import QRGameCreator from './QRGameCreator'
 

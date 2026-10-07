@@ -3,14 +3,28 @@ import { Shield, Users, Gamepad2, Mail, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const AuthScreen: React.FC = () => {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, loading, error } = useAuth()
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset'>('login')
+  const {
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    verifyEmail,
+    resendVerificationEmail,
+    resetPassword,
+    confirmPasswordReset,
+    submitting: loading,
+    error
+  } = useAuth()
+  // 'verify' y 'reset-confirm' son los pasos donde se introduce el código enviado por correo
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset' | 'verify' | 'reset-confirm'>('login')
   const [showPassword, setShowPassword] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    fullName: ''
+    fullName: '',
+    code: ''
   })
+  const isCodeStep = authMode === 'verify' || authMode === 'reset-confirm'
 
   const features = [
     {
@@ -39,14 +53,49 @@ const AuthScreen: React.FC = () => {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
+    setNotice(null)
     
     if (authMode === 'login') {
-      await signInWithEmail(formData.email, formData.password)
+      const { needsVerification } = await signInWithEmail(formData.email, formData.password)
+      if (needsVerification) {
+        setAuthMode('verify')
+      }
     } else if (authMode === 'register') {
-      await signUpWithEmail(formData.email, formData.password, formData.fullName)
+      const { needsVerification } = await signUpWithEmail(formData.email, formData.password, formData.fullName)
+      if (needsVerification) {
+        setAuthMode('verify')
+        setNotice('Te enviamos un código de 6 dígitos a tu correo.')
+      }
+    } else if (authMode === 'verify') {
+      await verifyEmail(formData.email, formData.code.trim())
     } else if (authMode === 'reset') {
-      await resetPassword(formData.email)
+      const sent = await resetPassword(formData.email)
+      if (sent) {
+        setFormData({ ...formData, password: '', code: '' })
+        setAuthMode('reset-confirm')
+        setNotice('Si el correo está registrado, te enviamos un código de 6 dígitos.')
+      }
+    } else if (authMode === 'reset-confirm') {
+      const changed = await confirmPasswordReset(formData.email, formData.code.trim(), formData.password)
+      if (changed) {
+        setFormData({ ...formData, password: '', code: '' })
+        setAuthMode('login')
+        setNotice('Contraseña actualizada. Ya puedes iniciar sesión.')
+      }
     }
+  }
+
+  const handleResendCode = async () => {
+    setNotice(null)
+    const sent = await resendVerificationEmail(formData.email)
+    if (sent) {
+      setNotice('Te enviamos un nuevo código a tu correo.')
+    }
+  }
+
+  const switchMode = (mode: 'login' | 'register' | 'reset') => {
+    setNotice(null)
+    setAuthMode(mode)
   }
 
   return (
@@ -93,19 +142,22 @@ const AuthScreen: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
                   {authMode === 'login' && '¡Únete a la Diversión!'}
                   {authMode === 'register' && '¡Crea tu Cuenta!'}
-                  {authMode === 'reset' && 'Restablecer Contraseña'}
+                  {(authMode === 'reset' || authMode === 'reset-confirm') && 'Restablecer Contraseña'}
+                  {authMode === 'verify' && 'Verifica tu Correo'}
                 </h2>
                 <p className="text-gray-600">
                   {authMode === 'login' && 'Inicia sesión para crear o participar en trivias'}
                   {authMode === 'register' && 'Regístrate para empezar a jugar'}
-                  {authMode === 'reset' && 'Te enviaremos un enlace para restablecer tu contraseña'}
+                  {authMode === 'reset' && 'Te enviaremos un código para restablecer tu contraseña'}
+                  {authMode === 'verify' && 'Escribe el código de 6 dígitos que enviamos a tu correo'}
+                  {authMode === 'reset-confirm' && 'Escribe el código que recibiste y tu nueva contraseña'}
                 </p>
               </div>
 
               {/* Tabs de autenticación */}
               <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
                 <button
-                  onClick={() => setAuthMode('login')}
+                  onClick={() => switchMode('login')}
                   className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                     authMode === 'login'
                       ? 'bg-white text-dominican-blue shadow-sm'
@@ -115,7 +167,7 @@ const AuthScreen: React.FC = () => {
                   Iniciar Sesión
                 </button>
                 <button
-                  onClick={() => setAuthMode('register')}
+                  onClick={() => switchMode('register')}
                   className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                     authMode === 'register'
                       ? 'bg-white text-dominican-blue shadow-sm'
@@ -157,16 +209,37 @@ const AuthScreen: React.FC = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
+                      readOnly={isCodeStep}
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent"
                       placeholder="tu@email.com"
                     />
                   </div>
                 </div>
 
-                {authMode !== 'reset' && (
+                {isCodeStep && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Contraseña
+                      Código de Verificación
+                    </label>
+                    <input
+                      type="text"
+                      name="code"
+                      value={formData.code}
+                      onChange={handleInputChange}
+                      required
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent tracking-widest text-center text-lg"
+                      placeholder="000000"
+                    />
+                  </div>
+                )}
+
+                {authMode !== 'reset' && authMode !== 'verify' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {authMode === 'reset-confirm' ? 'Nueva Contraseña' : 'Contraseña'}
                     </label>
                     <div className="relative">
                       <input
@@ -200,7 +273,9 @@ const AuthScreen: React.FC = () => {
                     <>
                       {authMode === 'login' && 'Iniciar Sesión'}
                       {authMode === 'register' && 'Crear Cuenta'}
-                      {authMode === 'reset' && 'Enviar Enlace'}
+                      {authMode === 'reset' && 'Enviar Código'}
+                      {authMode === 'verify' && 'Verificar Correo'}
+                      {authMode === 'reset-confirm' && 'Cambiar Contraseña'}
                     </>
                   )}
                 </button>
@@ -210,7 +285,7 @@ const AuthScreen: React.FC = () => {
               {authMode === 'login' && (
                 <div className="text-center mb-4">
                   <button
-                    onClick={() => setAuthMode('reset')}
+                    onClick={() => switchMode('reset')}
                     className="text-sm text-dominican-blue hover:underline"
                   >
                     ¿Olvidaste tu contraseña?
@@ -218,10 +293,21 @@ const AuthScreen: React.FC = () => {
                 </div>
               )}
 
-              {authMode === 'reset' && (
+              {authMode === 'verify' && (
                 <div className="text-center mb-4">
                   <button
-                    onClick={() => setAuthMode('login')}
+                    onClick={handleResendCode}
+                    className="text-sm text-dominican-blue hover:underline"
+                  >
+                    Reenviar código
+                  </button>
+                </div>
+              )}
+
+              {(authMode === 'reset' || isCodeStep) && (
+                <div className="text-center mb-4">
+                  <button
+                    onClick={() => switchMode('login')}
                     className="text-sm text-dominican-blue hover:underline"
                   >
                     Volver al inicio de sesión
@@ -259,6 +345,13 @@ const AuthScreen: React.FC = () => {
                   </>
                 )}
               </button>
+
+              {/* Mensaje informativo */}
+              {notice && (
+                <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">
+                  {notice}
+                </div>
+              )}
 
               {/* Mensaje de error */}
               {error && (

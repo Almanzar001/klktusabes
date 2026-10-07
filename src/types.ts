@@ -88,7 +88,7 @@ export interface QRGameSession {
   created_at: string
   created_by_user?: string
   game?: Game
-  games?: Game // Supabase devuelve como 'games' en las relaciones
+  games?: Game // La API devuelve como 'games' en las relaciones
 }
 
 // Tipos para el estado de la aplicación

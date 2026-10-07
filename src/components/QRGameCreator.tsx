@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { QrCode, Copy, Eye, Trash2, Plus, ArrowLeft, ExternalLink, Trophy } from 'lucide-react'
 import QRCodeLib from 'qrcode'
 import { useAuth } from '../contexts/AuthContext'
-import { qrHelpers, gameHelpers } from '../supabase'
+import { qrHelpers, gameHelpers } from '../insforge'
 import { Game, QRGameSession, generateQRCode } from '../types'
 import QRLeaderboard from './QRLeaderboard'
 

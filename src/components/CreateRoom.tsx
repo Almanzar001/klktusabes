@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users, Copy, Play, Settings, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { roomHelpers, gameHelpers, realtimeHelpers } from '../supabase'
+import { roomHelpers, gameHelpers, realtimeHelpers } from '../insforge'
 import { Game, Room, Player, generateRoomCode, AVAILABLE_AVATARS } from '../types'
 import GameSelector from './GameSelector'
 import PlayerAvatar from './PlayerAvatar'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users, Gamepad2, QrCode, Settings, LogOut, Crown, User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { statsHelpers } from '../supabase'
+import { statsHelpers } from '../insforge'
 
 interface WelcomeScreenProps {
   onNavigate: (view: 'create-room' | 'join-room' | 'single-player' | 'qr-access' | 'admin') => void

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Trophy, Medal, Award, RefreshCw, ArrowLeft, Crown } from 'lucide-react'
-import { supabase } from '../supabase'
+import { insforge } from '../insforge'
 
 interface LeaderboardEntry {
   player_name: string
@@ -38,7 +38,7 @@ const QRLeaderboard: React.FC<QRLeaderboardProps> = ({
       console.log('Fetching leaderboard for QR session:', qrSessionId)
 
       // Consulta mejorada con validación de sesión activa
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await insforge.database
         .from('qr_session_results')
         .select(`
           *,

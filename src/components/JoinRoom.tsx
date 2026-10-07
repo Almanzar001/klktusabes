@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ArrowLeft, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { roomHelpers, testConnection } from '../supabase'
+import { roomHelpers, testConnection } from '../insforge'
 import { Room, Player, AVAILABLE_AVATARS, isValidRoomCode } from '../types'
 import PlayerAvatar from './PlayerAvatar'
 

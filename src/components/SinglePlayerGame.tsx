@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Play, CheckCircle, X, RotateCcw, Trophy } from 'lucide-react'
-import { gameHelpers, qrResultsHelpers, supabase } from '../supabase'
+import { gameHelpers, qrResultsHelpers, insforge } from '../insforge'
 import { Game, Question, calculatePoints } from '../types'
 import GameSelector from './GameSelector'
 import QRLeaderboard from './QRLeaderboard'
@@ -118,7 +118,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     setQrResultsSaved(true) // Marcar como guardado antes de intentar
     try {
       // Verificar que la sesión QR esté activa
-      const { data: sessionData, error: sessionError } = await supabase
+      const { data: sessionData, error: sessionError } = await insforge.database
         .from('qr_game_sessions')
         .select('is_active, expires_at, title')
         .eq('id', qrSessionId)

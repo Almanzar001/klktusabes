@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { QrCode, Search, Play, ArrowLeft } from 'lucide-react'
-import { qrHelpers, qrResultsHelpers } from '../supabase'
+import { qrHelpers, qrResultsHelpers } from '../insforge'
 import { QRGameSession, Game, isValidQRCode } from '../types'
 import SinglePlayerGame from './SinglePlayerGame'
 
@@ -71,7 +71,7 @@ const QRGameAccess: React.FC<QRGameAccessProps> = ({ onBack }) => {
       console.log('Game from session:', data.games || data.game)
       
       setQRSession(data)
-      // La respuesta de Supabase viene con 'games' (plural), no 'game'
+      // La respuesta de la API viene con 'games' (plural), no 'game'
       const gameData = data.games || data.game
       setCurrentGame(gameData)
       
