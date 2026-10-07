@@ -79,7 +79,13 @@ npx @insforge/cli link --project-id <id-del-proyecto>
 npx @insforge/cli db migrations up --all
 ```
 
-3. La URL del backend está en el campo `oss_host` de `.insforge/project.json`; la anon key se obtiene con:
+3. Crea el bucket público donde se guardan las imágenes y los sonidos de las preguntas:
+
+```bash
+npx @insforge/cli storage create-bucket question-media
+```
+
+4. La URL del backend está en el campo `oss_host` de `.insforge/project.json`; la anon key se obtiene con:
 
 ```bash
 npx @insforge/cli secrets get ANON_KEY

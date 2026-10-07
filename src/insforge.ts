@@ -103,6 +103,55 @@ export const authHelpers = {
   }
 }
 
+// Imágenes y sonidos de las preguntas. Viven en un bucket público de Storage;
+// en la base de datos solo se guardan su URL y su clave.
+const MEDIA_BUCKET = 'question-media'
+
+const randomId = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(12))
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export const mediaHelpers = {
+  // Sube un archivo ya optimizado (ver media.ts)
+  upload: async (gameId: string, kind: 'imagen' | 'sonido', blob: Blob, extension: string) => {
+    try {
+      const name = `${kind}-${randomId()}.${extension}`
+      const file = new File([blob], name, { type: blob.type })
+      const { data, error } = await insforge.storage.from(MEDIA_BUCKET).upload(`${gameId}/${name}`, file)
+
+      if (error || !data?.url || !data.key) {
+        return { data: null, error: { message: error?.message || 'No se pudo subir el archivo' } }
+      }
+
+      return { data: { url: data.url, key: data.key }, error: null }
+
+    } catch (error) {
+      console.error('Error in mediaHelpers.upload:', error)
+      return {
+        data: null,
+        error: { message: error instanceof Error ? error.message : 'Error desconocido al subir el archivo' }
+      }
+    }
+  },
+
+  // Borra archivos que ya no usa ninguna pregunta. Un fallo aquí no debe
+  // tumbar la operación que lo provocó: el archivo solo quedaría sin usar.
+  remove: async (keys: Array<string | null | undefined>) => {
+    const used = keys.filter((key): key is string => !!key)
+    await Promise.all(
+      used.map(async key => {
+        try {
+          const { error } = await insforge.storage.from(MEDIA_BUCKET).remove(key)
+          if (error) console.warn('No se pudo borrar el archivo', key, error.message)
+        } catch (error) {
+          console.warn('No se pudo borrar el archivo', key, error)
+        }
+      })
+    )
+  }
+}
+
 // Funciones para juegos
 export const gameHelpers = {
   // Obtener todos los juegos con sus preguntas
@@ -208,13 +257,24 @@ export const gameHelpers = {
   // Eliminar un juego
   deleteGame: async (gameId: string) => {
     try {
-      const { error } = await db
+      // Al borrar el juego se van sus preguntas; sus archivos hay que borrarlos aparte
+      const { data: media } = await db
+        .from('questions')
+        .select('image_key, audio_key')
+        .eq('game_id', gameId)
+
+      const { data: deleted, error } = await db
         .from('games')
         .delete()
         .eq('id', gameId)
+        .select('id')
 
       if (error) {
         return { data: null, error }
+      }
+
+      if (deleted?.length && media) {
+        await mediaHelpers.remove(media.flatMap((question: any) => [question.image_key, question.audio_key]))
       }
 
       return { data: { success: true }, error: null }
@@ -323,14 +383,18 @@ export const gameHelpers = {
   // Eliminar pregunta
   deleteQuestion: async (questionId: string) => {
     try {
-      const { error } = await db
+      const { data: deleted, error } = await db
         .from('questions')
         .delete()
         .eq('id', questionId)
+        .select('image_key, audio_key')
 
       if (error) {
         return { data: null, error }
       }
+
+      // con la pregunta se van su imagen y su sonido
+      await mediaHelpers.remove((deleted ?? []).flatMap((question: any) => [question.image_key, question.audio_key]))
 
       return { data: { success: true }, error: null }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Edit, Trash2, ArrowLeft, Image as ImageIcon, Music } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { gameHelpers } from '../insforge'
 import { Game, Question } from '../types'
@@ -369,6 +369,18 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                               <span className="text-sm text-gray-500">
                                 {question.time_limit}s
                               </span>
+                              {question.image_url && (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-larimar" title="Tiene imagen">
+                                  <ImageIcon className="w-4 h-4" />
+                                  Imagen
+                                </span>
+                              )}
+                              {question.audio_url && (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-ambar" title="Tiene sonido">
+                                  <Music className="w-4 h-4" />
+                                  Sonido
+                                </span>
+                              )}
                             </div>
                             <p className="font-semibold text-dominican-blue-dark mb-2">
                               {question.text}

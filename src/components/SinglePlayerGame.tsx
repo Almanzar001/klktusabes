@@ -5,6 +5,7 @@ import { Game, Question, calculatePoints } from '../types'
 import GameSelector from './GameSelector'
 import QRLeaderboard from './QRLeaderboard'
 import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
+import QuestionMedia, { preloadQuestionImage } from './QuestionMedia'
 import { useGameSounds } from '../hooks/useGameSounds'
 
 interface SinglePlayerGameProps {
@@ -332,11 +333,20 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     }
   }, [timeLeft, questionOpen])
 
-  // Música mientras se juega
+  // Música mientras se juega. Si la pregunta trae su propio sonido, la música
+  // calla mientras está abierta para que se oiga.
+  const currentQuestion = shuffledQuestions[currentQuestionIndex]
+  const questionAudioOpen = questionOpen && !!currentQuestion?.audio_url
   useEffect(() => {
-    if (gameState === 'playing') startMusic('countdown')
+    if (gameState === 'playing' && !questionAudioOpen) startMusic('countdown')
     else stopMusic()
-  }, [gameState, startMusic, stopMusic])
+  }, [gameState, questionAudioOpen, startMusic, stopMusic])
+
+  // La imagen se descarga durante la cuenta atrás para que ya esté al abrirse la pregunta
+  const questionImage = gameState === 'playing' ? currentQuestion?.image_url : null
+  useEffect(() => {
+    preloadQuestionImage(questionImage)
+  }, [questionImage])
 
   const loadGames = async () => {
     try {
@@ -636,11 +646,13 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                 </h2>
               )}
 
-              {currentShuffledQuestion.image_url && !showAnswer && (
-                <img
-                  src={currentShuffledQuestion.image_url}
-                  alt="Imagen de la pregunta"
-                  className="max-h-56 mx-auto rounded-2xl shadow-lg"
+              {!showAnswer && (
+                <QuestionMedia
+                  key={currentShuffledQuestion.id}
+                  imageUrl={currentShuffledQuestion.image_url}
+                  audioUrl={currentShuffledQuestion.audio_url}
+                  autoPlay
+                  muted={isMuted}
                 />
               )}
 

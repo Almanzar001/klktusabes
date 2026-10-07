@@ -28,7 +28,11 @@ export interface Question {
   correct_answer: number // Índice de la respuesta correcta (0-3)
   time_limit: number
   order_number: number
-  image_url?: string
+  // Imagen y sonido opcionales: la URL los muestra y la clave permite borrarlos
+  image_url?: string | null
+  image_key?: string | null
+  audio_url?: string | null
+  audio_key?: string | null
   created_at: string
 }
 

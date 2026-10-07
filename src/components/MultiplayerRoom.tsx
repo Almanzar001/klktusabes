@@ -5,6 +5,7 @@ import { Room, Player, Game, shuffledOrder } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
 import PlayerAvatar from './PlayerAvatar'
 import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
+import QuestionMedia, { preloadQuestionImage } from './QuestionMedia'
 
 interface MultiplayerRoomProps {
   room: Room
@@ -328,13 +329,22 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   }, [timeLeft])
 
   // La música suena solo en el dispositivo del anfitrión, para que no se pisen
-  // varios dispositivos cuando todos juegan en el mismo lugar
+  // varios dispositivos cuando todos juegan en el mismo lugar. Si la pregunta
+  // trae su propio sonido, la música calla para que se oiga.
+  const questionAudio = question?.audio_url
   useEffect(() => {
     if (!isHost) return
     if (phase === 'lobby') startMusic('lobby')
-    else if (phase === 'question') startMusic('countdown')
+    else if (phase === 'question' && !questionAudio) startMusic('countdown')
     else stopMusic()
-  }, [phase, isHost, startMusic, stopMusic])
+  }, [phase, isHost, questionAudio, startMusic, stopMusic])
+
+  // La imagen se descarga durante la cuenta atrás, para que nadie pierda
+  // segundos de respuesta esperando a que cargue
+  const questionImage = question?.image_url
+  useEffect(() => {
+    preloadQuestionImage(questionImage)
+  }, [questionImage])
 
   useEffect(() => stopMusic, [stopMusic])
 
@@ -517,9 +527,13 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         {question?.text}
       </h2>
 
-      {question?.image_url && (
-        <img src={question.image_url} alt="" className="max-h-56 mx-auto rounded-2xl shadow-lg" />
-      )}
+      <QuestionMedia
+        key={questionId}
+        imageUrl={question?.image_url}
+        audioUrl={question?.audio_url}
+        autoPlay={!player || player.is_host}
+        muted={isMuted}
+      />
 
       <div className="flex items-center justify-between gap-3">
         <div
