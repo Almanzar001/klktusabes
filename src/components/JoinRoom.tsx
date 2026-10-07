@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ArrowLeft, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { roomHelpers, testConnection } from '../insforge'
+import { roomHelpers } from '../insforge'
 import { Room, Player, AVAILABLE_AVATARS, isValidRoomCode } from '../types'
 import PlayerAvatar from './PlayerAvatar'
 
@@ -117,16 +117,6 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
     setRoomCode(numericValue)
   }
 
-  const handleTestConnection = async () => {
-    setError('Probando conexión...')
-    const result = await testConnection()
-    if (result.success) {
-      setError(`✅ Conexión exitosa! Salas en BD: ${result.count || 0}`)
-    } else {
-      setError(`❌ Error de conexión: ${(result.error as any)?.message || 'Error desconocido'}`)
-    }
-  }
-
   return (
     <div className="min-h-screen fondo-caribe">
       {/* Header */}
@@ -237,7 +227,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
             </div>
           </div>
 
-          <div className="mt-8 space-y-3">
+          <div className="mt-8">
             <button
               onClick={handleJoinRoom}
               disabled={!roomCode.trim() || !playerName.trim() || roomCode.length !== 6 || loading}
@@ -245,27 +235,6 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
             >
               {loading ? 'Uniéndose...' : 'Unirse a la Sala'}
             </button>
-            
-            {/* Botón temporal para probar conexión */}
-            <button
-              onClick={handleTestConnection}
-              className="w-full btn-dominican-outline text-sm"
-            >
-              🔧 Probar Conexión a Base de Datos
-            </button>
-          </div>
-
-          {/* Instrucciones */}
-          <div className="mt-8 p-4 bg-arena border border-dominican-blue/20 rounded-lg">
-            <h3 className="font-semibold text-dominican-blue mb-2">
-              💡 ¿Cómo obtener el código de sala?
-            </h3>
-            <ul className="text-sm text-dominican-blue space-y-1">
-              <li>• Pídeselo al host (creador de la sala)</li>
-              <li>• El código tiene exactamente 6 dígitos</li>
-              <li>• Asegúrate de que la sala aún esté esperando jugadores</li>
-              <li>• Tu nombre debe ser único en la sala</li>
-            </ul>
           </div>
         </div>
       </div>

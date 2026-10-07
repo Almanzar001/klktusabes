@@ -481,29 +481,6 @@ const formatRelativeTime = (dateString: string) => {
   return `${Math.floor(diffDays / 30)} meses`
 }
 
-// Función de prueba para verificar conectividad
-export const testConnection = async () => {
-  try {
-    console.log('🔗 Testing InsForge connection...')
-
-    // Probar consulta simple
-    const { error, count } = await db
-      .from('rooms')
-      .select('*', { count: 'exact', head: true })
-
-    if (error) {
-      console.error('❌ Connection test failed:', error)
-      return { success: false, error }
-    } else {
-      console.log(`✅ Connection successful! Found ${count} rooms in database`)
-      return { success: true, count }
-    }
-  } catch (err) {
-    console.error('💥 Connection test exception:', err)
-    return { success: false, error: err }
-  }
-}
-
 // Funciones para salas multijugador
 export const roomHelpers = {
   // Crear una nueva sala
