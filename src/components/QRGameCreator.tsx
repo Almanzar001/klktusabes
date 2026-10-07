@@ -193,9 +193,9 @@ const QRGameCreator: React.FC<QRGameCreatorProps> = ({ onBack }) => {
   // Verificar permisos
   if (!isCreator) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen fondo-caribe flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Acceso Restringido</h2>
+          <h2 className="text-2xl font-display text-dominican-blue mb-4">Acceso Restringido</h2>
           <p className="text-gray-600 mb-6">Solo los usuarios creadores pueden crear sesiones QR.</p>
           <button onClick={onBack} className="btn-dominican-primary">
             Volver al Panel
@@ -217,27 +217,27 @@ const QRGameCreator: React.FC<QRGameCreatorProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
+                className="text-white/85 hover:text-white"
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Sesiones QR</h1>
-                <p className="text-gray-600">Crea códigos QR para acceso directo a tus juegos</p>
+                <h1 className="font-display text-2xl text-white">Sesiones QR</h1>
+                <p className="text-sm font-semibold text-white/80">Crea códigos QR para acceso directo a tus juegos</p>
               </div>
             </div>
             
             <button
               onClick={() => setShowCreateForm(true)}
-              className="btn-dominican-primary"
+              className="btn-dominican-secondary py-2 px-4 text-base"
             >
               <Plus className="w-5 h-5 mr-2" />
               Nueva Sesión QR
@@ -249,32 +249,32 @@ const QRGameCreator: React.FC<QRGameCreatorProps> = ({ onBack }) => {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-dominican-red/10 border border-dominican-red/40 text-dominican-red rounded-lg">
             {error}
           </div>
         )}
 
         {/* Información sobre QR */}
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-8">
-          <h3 className="text-lg font-bold text-purple-800 mb-2">
+        <div className="bg-arena border border-dominican-blue/20 rounded-xl p-6 mb-8">
+          <h3 className="text-lg font-bold text-dominican-blue mb-2">
             🔗 ¿Qué son las Sesiones QR?
           </h3>
-          <p className="text-purple-700 mb-4">
+          <p className="text-dominican-blue mb-4">
             Las sesiones QR permiten que los jugadores accedan directamente a tus trivias sin necesidad de crear salas multijugador. 
             Ideal para eventos, presentaciones o acceso público.
           </p>
           <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div className="bg-white p-3 rounded-lg">
-              <span className="font-semibold text-purple-800">1. Crea:</span>
-              <p className="text-purple-600">Genera un código QR único para tu juego</p>
+              <span className="font-semibold text-dominican-blue">1. Crea:</span>
+              <p className="text-dominican-blue">Genera un código QR único para tu juego</p>
             </div>
             <div className="bg-white p-3 rounded-lg">
-              <span className="font-semibold text-purple-800">2. Comparte:</span>
-              <p className="text-purple-600">Los usuarios escanean el QR o usan el enlace</p>
+              <span className="font-semibold text-dominican-blue">2. Comparte:</span>
+              <p className="text-dominican-blue">Los usuarios escanean el QR o usan el enlace</p>
             </div>
             <div className="bg-white p-3 rounded-lg">
-              <span className="font-semibold text-purple-800">3. Juegan:</span>
-              <p className="text-purple-600">Acceso directo e individual a la trivia</p>
+              <span className="font-semibold text-dominican-blue">3. Juegan:</span>
+              <p className="text-dominican-blue">Acceso directo e individual a la trivia</p>
             </div>
           </div>
         </div>
@@ -286,10 +286,10 @@ const QRGameCreator: React.FC<QRGameCreatorProps> = ({ onBack }) => {
           </div>
         ) : qrSessions.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <QrCode className="w-12 h-12 text-purple-600" />
+            <div className="w-24 h-24 bg-arena rounded-full flex items-center justify-center mx-auto mb-4">
+              <QrCode className="w-12 h-12 text-dominican-blue" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+            <h3 className="text-xl font-semibold text-dominican-blue-dark mb-2">
               No tienes sesiones QR
             </h3>
             <p className="text-gray-600 mb-6">
@@ -325,7 +325,7 @@ const QRGameCreator: React.FC<QRGameCreatorProps> = ({ onBack }) => {
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-6">
               Crear Nueva Sesión QR
             </h3>
             
@@ -486,10 +486,10 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
+      <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <h3 className="text-lg font-bold text-gray-800 mb-1">
+            <h3 className="text-lg font-bold text-dominican-blue-dark mb-1">
               {session.title}
             </h3>
             <p className="text-sm text-gray-600 mb-2">
@@ -502,7 +502,7 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
           
           <button
             onClick={onDeactivate}
-            className="text-red-600 hover:text-red-800 p-1"
+            className="text-dominican-red hover:text-dominican-red p-1"
             title="Desactivar sesión"
           >
             <Trash2 className="w-4 h-4" />
@@ -510,7 +510,7 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
         </div>
 
         {/* Código de acceso */}
-        <div className="bg-gray-50 rounded-lg p-3 mb-4">
+        <div className="bg-arena rounded-lg p-3 mb-4">
           <p className="text-xs text-gray-500 mb-1">Código de Acceso:</p>
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-lg text-dominican-blue">
@@ -543,7 +543,7 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
         <div className="space-y-2">
           <button
             onClick={onCopyURL}
-            className="w-full flex items-center justify-center gap-2 bg-purple-100 text-purple-700 py-2 px-3 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-arena text-dominican-blue py-2 px-3 rounded-lg hover:bg-purple-200 transition-colors text-sm"
           >
             <Copy className="w-4 h-4" />
             {copySuccess ? '¡Copiado!' : 'Copiar Enlace'}
@@ -551,7 +551,7 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
           
           <button
             onClick={onShowLeaderboard}
-            className="w-full flex items-center justify-center gap-2 bg-yellow-100 text-yellow-700 py-2 px-3 rounded-lg hover:bg-yellow-200 transition-colors text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-ambar/15 text-ambar py-2 px-3 rounded-lg hover:bg-yellow-200 transition-colors text-sm"
           >
             <Trophy className="w-4 h-4" />
             Ver Leaderboard
@@ -587,7 +587,7 @@ const QRSessionCard: React.FC<QRSessionCardProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-sm w-full mx-4">
             <div className="text-center">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">
+              <h3 className="text-lg font-bold text-dominican-blue-dark mb-4">
                 {session.title}
               </h3>
               

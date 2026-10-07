@@ -64,9 +64,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   // Verificar permisos
   if (!isCreator) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen fondo-caribe flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Acceso Restringido</h2>
+          <h2 className="text-2xl font-display text-dominican-blue mb-4">Acceso Restringido</h2>
           <p className="text-gray-600 mb-6">Solo los usuarios creadores pueden acceder al panel de administración.</p>
           <button onClick={onBack} className="btn-dominican-primary">
             Volver al Inicio
@@ -87,26 +87,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   // Dashboard principal
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
+                className="text-white/85 hover:text-white"
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Panel de Administración</h1>
-                <p className="text-gray-600">Gestiona tus juegos y sesiones</p>
+                <h1 className="font-display text-2xl text-white">Panel de Administración</h1>
+                <p className="text-sm font-semibold text-white/80">Gestiona tus juegos y sesiones</p>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+              <div className="bg-white/15 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
                 <Settings className="w-4 h-4" />
                 Creador
               </div>
@@ -132,7 +132,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Juegos Creados</p>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-dominican-blue-dark">
                   {loadingStats ? (
                     <div className="animate-pulse bg-gray-300 h-6 w-8 rounded"></div>
                   ) : (
@@ -140,8 +140,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   )}
                 </p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <Gamepad2 className="w-6 h-6 text-blue-600" />
+              <div className="bg-arena p-3 rounded-lg">
+                <Gamepad2 className="w-6 h-6 text-dominican-blue" />
               </div>
             </div>
           </div>
@@ -150,7 +150,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Sesiones QR</p>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-dominican-blue-dark">
                   {loadingStats ? (
                     <div className="animate-pulse bg-gray-300 h-6 w-8 rounded"></div>
                   ) : (
@@ -158,8 +158,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   )}
                 </p>
               </div>
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <QrCode className="w-6 h-6 text-purple-600" />
+              <div className="bg-arena p-3 rounded-lg">
+                <QrCode className="w-6 h-6 text-dominican-blue" />
               </div>
             </div>
           </div>
@@ -168,7 +168,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Jugadores Activos</p>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-dominican-blue-dark">
                   {loadingStats ? (
                     <div className="animate-pulse bg-gray-300 h-6 w-12 rounded"></div>
                   ) : (
@@ -176,8 +176,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   )}
                 </p>
               </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <Users className="w-6 h-6 text-green-600" />
+              <div className="bg-palma/10 p-3 rounded-lg">
+                <Users className="w-6 h-6 text-palma" />
               </div>
             </div>
           </div>
@@ -186,7 +186,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Partidas Jugadas</p>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-dominican-blue-dark">
                   {loadingStats ? (
                     <div className="animate-pulse bg-gray-300 h-6 w-12 rounded"></div>
                   ) : (
@@ -194,8 +194,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   )}
                 </p>
               </div>
-              <div className="bg-red-100 p-3 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-red-600" />
+              <div className="bg-dominican-red/10 p-3 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-dominican-red" />
               </div>
             </div>
           </div>
@@ -212,7 +212,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <Gamepad2 className="w-8 h-8 text-white" />
             </div>
             
-            <h3 className="text-xl font-bold text-gray-800 mb-3">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-3">
               Gestionar Juegos
             </h3>
             
@@ -230,11 +230,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             onClick={() => setCurrentView('qr-sessions')}
             className="bg-white rounded-xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 group"
           >
-            <div className="bg-purple-600 rounded-2xl p-4 w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div className="bg-dominican-blue rounded-2xl p-4 w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <QrCode className="w-8 h-8 text-white" />
             </div>
             
-            <h3 className="text-xl font-bold text-gray-800 mb-3">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-3">
               Sesiones QR
             </h3>
             
@@ -242,18 +242,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               Crea códigos QR para acceso directo a tus trivias sin necesidad de salas.
             </p>
             
-            <div className="text-purple-600 font-semibold text-sm group-hover:text-purple-700">
+            <div className="text-dominican-blue font-semibold text-sm group-hover:text-dominican-blue">
               Gestionar QR →
             </div>
           </div>
 
           {/* Estadísticas */}
           <div className="bg-white rounded-xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 group opacity-50">
-            <div className="bg-green-600 rounded-2xl p-4 w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div className="bg-palma rounded-2xl p-4 w-16 h-16 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <BarChart3 className="w-8 h-8 text-white" />
             </div>
             
-            <h3 className="text-xl font-bold text-gray-800 mb-3">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-3">
               Estadísticas
             </h3>
             
@@ -269,9 +269,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
         {/* Juegos recientes */}
         <div className="mt-12">
-          <h3 className="text-2xl font-bold text-gray-800 mb-6">Juegos Recientes</h3>
+          <h3 className="text-2xl font-bold text-dominican-blue-dark mb-6">Juegos Recientes</h3>
           
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="p-6">
               <div className="space-y-4">
                 {loadingStats ? (
@@ -288,13 +288,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   ))
                 ) : userStats.recentGames.length > 0 ? (
                   userStats.recentGames.map((game: any, index: number) => (
-                    <div key={game.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div key={game.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-arena">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-dominican-blue rounded-lg flex items-center justify-center">
                           <Gamepad2 className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                          <h4 className="font-semibold text-gray-800">{game.title}</h4>
+                          <h4 className="font-semibold text-dominican-blue-dark">{game.title}</h4>
                           <p className="text-sm text-gray-600">
                             {game.questions} preguntas • {game.plays} partidas • Creado hace {game.created}
                           </p>

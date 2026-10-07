@@ -163,16 +163,16 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="font-display text-2xl text-white">
                 {question ? 'Editar Pregunta' : 'Nueva Pregunta'}
               </h1>
-              <p className="text-gray-600">
+              <p className="text-sm font-semibold text-white/80">
                 Juego: {game.title}
               </p>
             </div>
@@ -180,7 +180,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowPreview(!showPreview)}
-                className="btn-dominican-outline py-2 px-4"
+                className="btn-dominican-outline text-base py-2 px-4"
               >
                 {showPreview ? 'Editar' : 'Vista Previa'}
               </button>
@@ -188,7 +188,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               <button
                 onClick={handleSave}
                 disabled={!isFormValid() || saving}
-                className="btn-dominican-primary disabled:opacity-50"
+                className="btn-dominican-secondary py-2 px-4 text-base disabled:opacity-50"
               >
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Guardando...' : 'Guardar'}
@@ -196,7 +196,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               
               <button
                 onClick={onCancel}
-                className="text-gray-600 hover:text-red-600 p-2"
+                className="text-white/85 hover:text-white p-2"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -208,17 +208,17 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
       <div className="max-w-4xl mx-auto px-6 py-8">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-dominican-red/10 border border-dominican-red/40 text-dominican-red rounded-lg">
             {error}
           </div>
         )}
 
         {showPreview ? (
           // Vista previa de la pregunta
-          <div className="bg-white rounded-xl shadow-lg p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="question-card">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Vista Previa</h2>
+                <h2 className="text-2xl font-display text-dominican-blue">Vista Previa</h2>
                 <div className="flex items-center gap-2 text-gray-600">
                   <Clock className="w-5 h-5" />
                   <span>{timeLimit}s</span>
@@ -238,7 +238,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                 </div>
               )}
               
-              <h3 className="text-xl font-semibold text-gray-800 mb-8">
+              <h3 className="text-xl font-semibold text-dominican-blue-dark mb-8">
                 {questionText || 'Escribe tu pregunta aquí...'}
               </h3>
               
@@ -253,7 +253,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                     <div className="flex items-center justify-between">
                       <span>{option || `Opción ${index + 1}`}</span>
                       {index === correctAnswer && (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <CheckCircle className="w-5 h-5 text-palma" />
                       )}
                     </div>
                   </button>
@@ -265,8 +265,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           // Formulario de edición
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Formulario principal */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-display text-dominican-blue mb-6">
                 Contenido de la Pregunta
               </h2>
               
@@ -326,8 +326,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
             </div>
 
             {/* Opciones de respuesta */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-display text-dominican-blue mb-6">
                 Opciones de Respuesta
               </h2>
               
@@ -337,7 +337,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Opción {index + 1} *
                       {index === correctAnswer && (
-                        <span className="ml-2 text-green-600 font-normal">
+                        <span className="ml-2 text-palma font-normal">
                           (Respuesta Correcta)
                         </span>
                       )}
@@ -350,7 +350,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                         onChange={(e) => handleOptionChange(index, e.target.value)}
                         className={`flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-dominican-blue ${
                           index === correctAnswer
-                            ? 'border-green-500 bg-green-50'
+                            ? 'border-palma/40 bg-palma/10'
                             : 'border-gray-300'
                         }`}
                         placeholder={`Escribe la opción ${index + 1}...`}
@@ -361,7 +361,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                         onClick={() => setCorrectAnswer(index)}
                         className={`p-3 rounded-lg transition-colors ${
                           index === correctAnswer
-                            ? 'bg-green-500 text-white'
+                            ? 'bg-palma text-white'
                             : 'bg-gray-200 text-gray-600 hover:bg-green-200'
                         }`}
                         title="Marcar como respuesta correcta"
@@ -378,11 +378,11 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               </div>
 
               {/* Instrucciones */}
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="font-semibold text-blue-800 mb-2">
+              <div className="mt-6 p-4 bg-arena border border-dominican-blue/20 rounded-lg">
+                <h3 className="font-semibold text-dominican-blue mb-2">
                   💡 Consejos para crear buenas preguntas:
                 </h3>
-                <ul className="text-sm text-blue-700 space-y-1">
+                <ul className="text-sm text-dominican-blue space-y-1">
                   <li>• Haz preguntas claras y específicas</li>
                   <li>• Asegúrate de que solo una respuesta sea correcta</li>
                   <li>• Evita opciones obviamente incorrectas</li>

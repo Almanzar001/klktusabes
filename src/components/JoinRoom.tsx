@@ -128,18 +128,18 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={onBack}
-              className="text-dominican-blue hover:text-dominican-blue-light"
+              className="text-white/85 hover:text-white"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-800">Unirse a Sala</h1>
+            <h1 className="font-display text-2xl text-white">Unirse a Sala</h1>
           </div>
         </div>
       </div>
@@ -147,17 +147,17 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
       <div className="max-w-2xl mx-auto px-6 py-8">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-dominican-red/10 border border-dominican-red/40 text-dominican-red rounded-lg">
             {error}
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-dominican-red rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            <h2 className="text-2xl font-display text-dominican-blue mb-2">
               Únete a la Diversión
             </h2>
             <p className="text-gray-600">
@@ -212,7 +212,7 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
                     onClick={() => setSelectedAvatar(avatar)}
                     className={`p-2 rounded-lg border-2 transition-all hover:scale-105 ${
                       selectedAvatar === avatar
-                        ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                        ? 'border-dominican-blue bg-arena ring-2 ring-dominican-blue ring-opacity-50'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
@@ -224,12 +224,12 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
           </div>
 
           {/* Vista previa del jugador */}
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="mt-8 p-4 bg-arena rounded-lg border-2 border-dashed border-gray-300">
             <p className="text-sm font-semibold text-gray-700 mb-2">Vista previa:</p>
             <div className="flex items-center gap-3">
               <PlayerAvatar avatar={selectedAvatar} size="lg" />
               <div>
-                <p className="font-semibold text-gray-800">
+                <p className="font-semibold text-dominican-blue-dark">
                   {playerName || 'Tu nombre'}
                 </p>
                 <p className="text-sm text-gray-600">Jugador</p>
@@ -256,11 +256,11 @@ const JoinRoom: React.FC<JoinRoomProps> = ({ onBack, onJoinRoom }) => {
           </div>
 
           {/* Instrucciones */}
-          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">
+          <div className="mt-8 p-4 bg-arena border border-dominican-blue/20 rounded-lg">
+            <h3 className="font-semibold text-dominican-blue mb-2">
               💡 ¿Cómo obtener el código de sala?
             </h3>
-            <ul className="text-sm text-blue-700 space-y-1">
+            <ul className="text-sm text-dominican-blue space-y-1">
               <li>• Pídeselo al host (creador de la sala)</li>
               <li>• El código tiene exactamente 6 dígitos</li>
               <li>• Asegúrate de que la sala aún esté esperando jugadores</li>

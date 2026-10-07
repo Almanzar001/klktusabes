@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Shield, Users, Gamepad2, Mail, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
 
 const AuthScreen: React.FC = () => {
   const {
@@ -98,54 +99,51 @@ const AuthScreen: React.FC = () => {
     setAuthMode(mode)
   }
 
+  const inputClass = 'w-full px-4 py-3 bg-arena border-2 border-dominican-blue/20 rounded-xl focus:outline-none focus:border-dominican-blue'
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dominican-blue via-dominican-blue-light to-dominican-red">
-      <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen fondo-caribe text-dominican-blue-dark">
+      <div className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="max-w-4xl w-full">
-          <div className="text-center mb-12">
-            {/* Logo y título principal */}
-            <div className="mb-8">
-              <h1 className="text-6xl md:text-8xl font-bold text-white mb-4 animate-slide-in-down">
-                KLKTUSABES
-              </h1>
-              <div className="w-32 h-2 bg-dominican-red mx-auto mb-4 rounded-full"></div>
-              <p className="text-xl md:text-2xl text-blue-100 font-semibold">
-                🇩🇴 Trivia Dominicana Interactiva 🇩🇴
-              </p>
+          {/* Logo y título principal */}
+          <div className="text-center mb-8">
+            <h1 className="font-display text-6xl md:text-8xl text-dominican-blue animate-slide-in-down">
+              KLKTUSABES
+            </h1>
+            {/* franja de la bandera */}
+            <div className="flex w-40 h-2 mx-auto my-3 rounded-full overflow-hidden shadow">
+              <span className="flex-1 bg-dominican-blue" />
+              <span className="flex-1 bg-white" />
+              <span className="flex-1 bg-dominican-red" />
             </div>
-
-            {/* Descripción */}
-            <p className="text-lg text-blue-100 mb-8 max-w-2xl mx-auto">
-              La primera plataforma de trivia interactiva con sabor dominicano. 
-              Crea, comparte y disfruta de juegos de preguntas en tiempo real con tus amigos.
+            <p className="font-display text-xl md:text-2xl text-dominican-red">
+              La trivia con sabor dominicano
             </p>
-          </div>
+            <p className="text-gray-600 font-semibold mt-2 max-w-xl mx-auto">
+              Crea, comparte y juega preguntas en tiempo real con tu gente.
+            </p>
 
-          {/* Características principales */}
-          <div className="grid md:grid-cols-3 gap-6 mb-12 animate-slide-in-up">
-            {features.map((feature, index) => (
-              <div 
-                key={index}
-                className="bg-white/10 backdrop-blur-lg rounded-xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:scale-105"
-              >
-                <feature.icon className="w-12 h-12 text-white mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-blue-100 text-sm">{feature.description}</p>
-              </div>
-            ))}
+            {/* Los cuatro símbolos de las respuestas del juego */}
+            <div className="flex justify-center gap-3 mt-5" aria-hidden="true">
+              {ANSWER_STYLES.map((style) => (
+                <span key={style.icon} className={`${style.bg} tablita w-14 h-14 rounded-2xl border-4 border-white shadow-lg flex items-center justify-center`}>
+                  <AnswerBadge icon={style.icon} color={style.text} className="w-9 h-9" />
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* Sección de autenticación */}
           <div className="max-w-md mx-auto">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 animate-slide-in-up">
+            <div className="bg-white rounded-2xl shadow-xl border-t-8 border-dominican-red p-6 sm:p-8 animate-slide-in-up">
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  {authMode === 'login' && '¡Únete a la Diversión!'}
-                  {authMode === 'register' && '¡Crea tu Cuenta!'}
-                  {(authMode === 'reset' || authMode === 'reset-confirm') && 'Restablecer Contraseña'}
-                  {authMode === 'verify' && 'Verifica tu Correo'}
+                <h2 className="font-display text-3xl text-dominican-blue mb-1">
+                  {authMode === 'login' && '¡Entra a jugar!'}
+                  {authMode === 'register' && '¡Crea tu cuenta!'}
+                  {(authMode === 'reset' || authMode === 'reset-confirm') && 'Restablecer contraseña'}
+                  {authMode === 'verify' && 'Verifica tu correo'}
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-gray-600 font-semibold text-sm">
                   {authMode === 'login' && 'Inicia sesión para crear o participar en trivias'}
                   {authMode === 'register' && 'Regístrate para empezar a jugar'}
                   {authMode === 'reset' && 'Te enviaremos un código para restablecer tu contraseña'}
@@ -155,23 +153,23 @@ const AuthScreen: React.FC = () => {
               </div>
 
               {/* Tabs de autenticación */}
-              <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
+              <div className="flex mb-6 bg-arena rounded-xl p-1">
                 <button
                   onClick={() => switchMode('login')}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 px-4 rounded-lg font-display transition-colors ${
                     authMode === 'login'
-                      ? 'bg-white text-dominican-blue shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-dominican-blue text-white shadow'
+                      : 'text-gray-600 hover:text-dominican-blue'
                   }`}
                 >
-                  Iniciar Sesión
+                  Iniciar sesión
                 </button>
                 <button
                   onClick={() => switchMode('register')}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 px-4 rounded-lg font-display transition-colors ${
                     authMode === 'register'
-                      ? 'bg-white text-dominican-blue shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-dominican-blue text-white shadow'
+                      : 'text-gray-600 hover:text-dominican-blue'
                   }`}
                 >
                   Registrarse
@@ -179,11 +177,11 @@ const AuthScreen: React.FC = () => {
               </div>
 
               {/* Formulario de email/contraseña */}
-              <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+              <form onSubmit={handleEmailAuth} className="space-y-4 mb-5">
                 {authMode === 'register' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre Completo
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                      Nombre completo
                     </label>
                     <input
                       type="text"
@@ -191,18 +189,18 @@ const AuthScreen: React.FC = () => {
                       value={formData.fullName}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent"
+                      className={inputClass}
                       placeholder="Tu nombre completo"
                     />
                   </div>
                 )}
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Correo Electrónico
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                    Correo electrónico
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                    <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
                       name="email"
@@ -210,7 +208,7 @@ const AuthScreen: React.FC = () => {
                       onChange={handleInputChange}
                       required
                       readOnly={isCodeStep}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent"
+                      className={`${inputClass} pl-12`}
                       placeholder="tu@email.com"
                     />
                   </div>
@@ -218,8 +216,8 @@ const AuthScreen: React.FC = () => {
 
                 {isCodeStep && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Código de Verificación
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                      Código de verificación
                     </label>
                     <input
                       type="text"
@@ -230,7 +228,7 @@ const AuthScreen: React.FC = () => {
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       maxLength={6}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent tracking-widest text-center text-lg"
+                      className={`${inputClass} font-display text-2xl tracking-widest text-center text-dominican-blue`}
                       placeholder="000000"
                     />
                   </div>
@@ -238,8 +236,8 @@ const AuthScreen: React.FC = () => {
 
                 {authMode !== 'reset' && authMode !== 'verify' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {authMode === 'reset-confirm' ? 'Nueva Contraseña' : 'Contraseña'}
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                      {authMode === 'reset-confirm' ? 'Nueva contraseña' : 'Contraseña'}
                     </label>
                     <div className="relative">
                       <input
@@ -248,13 +246,14 @@ const AuthScreen: React.FC = () => {
                         value={formData.password}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dominican-blue focus:border-transparent"
+                        className={`${inputClass} pr-12`}
                         placeholder="Tu contraseña"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-3.5 text-gray-400 hover:text-dominican-blue"
+                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       >
                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -265,17 +264,17 @@ const AuthScreen: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-dominican-blue hover:bg-dominican-blue-light text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="btn-dominican-secondary w-full text-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
-                    <div className="loading-spinner"></div>
+                    <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
                   ) : (
                     <>
-                      {authMode === 'login' && 'Iniciar Sesión'}
-                      {authMode === 'register' && 'Crear Cuenta'}
-                      {authMode === 'reset' && 'Enviar Código'}
-                      {authMode === 'verify' && 'Verificar Correo'}
-                      {authMode === 'reset-confirm' && 'Cambiar Contraseña'}
+                      {authMode === 'login' && 'Iniciar sesión'}
+                      {authMode === 'register' && 'Crear cuenta'}
+                      {authMode === 'reset' && 'Enviar código'}
+                      {authMode === 'verify' && 'Verificar correo'}
+                      {authMode === 'reset-confirm' && 'Cambiar contraseña'}
                     </>
                   )}
                 </button>
@@ -286,7 +285,7 @@ const AuthScreen: React.FC = () => {
                 <div className="text-center mb-4">
                   <button
                     onClick={() => switchMode('reset')}
-                    className="text-sm text-dominican-blue hover:underline"
+                    className="text-sm font-bold text-dominican-blue hover:underline"
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
@@ -297,7 +296,7 @@ const AuthScreen: React.FC = () => {
                 <div className="text-center mb-4">
                   <button
                     onClick={handleResendCode}
-                    className="text-sm text-dominican-blue hover:underline"
+                    className="text-sm font-bold text-dominican-blue hover:underline"
                   >
                     Reenviar código
                   </button>
@@ -308,7 +307,7 @@ const AuthScreen: React.FC = () => {
                 <div className="text-center mb-4">
                   <button
                     onClick={() => switchMode('login')}
-                    className="text-sm text-dominican-blue hover:underline"
+                    className="text-sm font-bold text-dominican-blue hover:underline"
                   >
                     Volver al inicio de sesión
                   </button>
@@ -316,12 +315,12 @@ const AuthScreen: React.FC = () => {
               )}
 
               {/* Divider */}
-              <div className="relative my-6">
+              <div className="relative my-5">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
+                  <div className="w-full border-t-2 border-dominican-blue/10" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">o</span>
+                  <span className="px-3 bg-white font-bold text-gray-500">o</span>
                 </div>
               </div>
 
@@ -329,63 +328,55 @@ const AuthScreen: React.FC = () => {
               <button
                 onClick={signInWithGoogle}
                 disabled={loading}
-                className="w-full bg-white border-2 border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-3"
+                className="btn-dominican-outline w-full gap-3 border-2 border-dominican-blue/15 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
-                  <div className="loading-spinner"></div>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Continuar con Google
-                  </>
-                )}
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continuar con Google
               </button>
 
               {/* Mensaje informativo */}
               {notice && (
-                <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">
+                <div className="mt-4 px-4 py-3 bg-palma/10 border border-palma/40 text-palma rounded-xl text-sm font-semibold">
                   {notice}
                 </div>
               )}
 
               {/* Mensaje de error */}
               {error && (
-                <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                <div className="mt-4 px-4 py-3 bg-dominican-red text-white rounded-xl text-sm font-semibold">
                   {error}
                 </div>
               )}
 
-              {/* Información adicional */}
-              <div className="mt-6 text-center">
-                <p className="text-xs text-gray-500 mb-4">
-                  Al continuar, aceptas nuestros términos de servicio
-                </p>
-                
-                <div className="flex items-center justify-center gap-4 text-xs text-gray-400">
-                  <span>🔒 Seguro</span>
-                  <span>⚡ Rápido</span>
-                  <span>🎮 Divertido</span>
-                </div>
-              </div>
+              <p className="mt-5 text-center text-xs font-semibold text-gray-500">
+                Al continuar, aceptas nuestros términos de servicio
+              </p>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="text-center mt-12">
-            <p className="text-blue-100 text-sm">
-              Hecho con ❤️ para la comunidad dominicana
-            </p>
-            <div className="flex justify-center gap-2 mt-2">
-              <span className="text-2xl">🇩🇴</span>
-              <span className="text-blue-100 text-sm">República Dominicana</span>
-              <span className="text-2xl">🇩🇴</span>
-            </div>
+          {/* Características principales */}
+          <div className="grid md:grid-cols-3 gap-4 mt-8 animate-slide-in-up">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl shadow-lg p-5 text-center"
+              >
+                <feature.icon className="w-9 h-9 text-dominican-red mx-auto mb-2" />
+                <h3 className="font-display text-lg text-dominican-blue">{feature.title}</h3>
+                <p className="text-gray-600 font-semibold text-sm">{feature.description}</p>
+              </div>
+            ))}
           </div>
+
+          {/* Footer */}
+          <p className="text-center mt-8 text-sm font-semibold text-gray-600">
+            Hecho con ❤️ para la comunidad dominicana 🇩🇴
+          </p>
         </div>
       </div>
     </div>

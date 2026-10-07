@@ -48,21 +48,24 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
     }
   }
 
+  // Los cuatro modos de juego, con los mismos colores que las respuestas de la partida
   const gameOptions = [
     {
       id: 'create-room',
       title: 'Crear Sala',
-      description: 'Inicia una nueva partida multijugador',
+      description: 'Inicia una partida y comparte el código',
       icon: Users,
-      color: 'dominican-blue',
+      color: 'bg-dominican-red',
+      iconColor: 'text-dominican-red',
       action: () => onNavigate('create-room')
     },
     {
       id: 'join-room',
       title: 'Unirse a Sala',
-      description: 'Únete a una partida existente',
+      description: 'Entra con el código de una partida',
       icon: Gamepad2,
-      color: 'dominican-red',
+      color: 'bg-larimar',
+      iconColor: 'text-larimar',
       action: () => onNavigate('join-room')
     },
     {
@@ -70,7 +73,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
       title: 'Juego Individual',
       description: 'Practica con cualquier trivia',
       icon: User,
-      color: 'green-600',
+      color: 'bg-ambar',
+      iconColor: 'text-ambar',
       action: () => onNavigate('single-player')
     },
     {
@@ -78,37 +82,38 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
       title: 'Acceso QR',
       description: 'Escanea un código QR para jugar',
       icon: QrCode,
-      color: 'purple-600',
+      color: 'bg-palma',
+      iconColor: 'text-palma',
       action: () => onNavigate('qr-access')
     }
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
       {/* Header con información del usuario */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-dominican-blue">KLKTUSABES</h1>
-              <p className="text-gray-600">🇩🇴 Trivia Dominicana</p>
+      <header className="cabecera">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl leading-none">KLKTUSABES</h1>
+              <p className="text-xs font-semibold text-white/80">Trivia dominicana</p>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Información del usuario */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-dominican-blue rounded-full flex items-center justify-center">
-                  <span className="text-white font-semibold">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shrink-0">
+                  <span className="font-display text-xl text-dominican-blue">
                     {userProfile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
                   </span>
                 </div>
                 <div className="hidden md:block">
-                  <p className="font-semibold text-gray-800">
+                  <p className="font-bold leading-tight">
                     {userProfile?.full_name || 'Usuario'}
                   </p>
                   <div className="flex items-center gap-1">
-                    {isCreator && <Crown className="w-4 h-4 text-yellow-500" />}
-                    <p className="text-sm text-gray-600 capitalize">
+                    {isCreator && <Crown className="w-4 h-4 text-yellow-300" />}
+                    <p className="text-xs font-semibold text-white/80 capitalize">
                       {userProfile?.role || 'participante'}
                     </p>
                   </div>
@@ -120,17 +125,20 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
                 {isCreator && (
                   <button
                     onClick={() => onNavigate('admin')}
-                    className="btn-dominican-outline py-2 px-4 text-sm"
+                    className="btn-dominican-outline py-2 px-4 text-sm gap-2"
+                    title="Panel Admin"
+                    aria-label="Panel Admin"
                   >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Panel Admin
+                    <Settings className="w-4 h-4" />
+                    <span className="hidden sm:inline">Panel Admin</span>
                   </button>
                 )}
                 
                 <button
                   onClick={signOut}
-                  className="text-gray-600 hover:text-red-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-full bg-white/15 hover:bg-white/25 transition-colors"
                   title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
@@ -138,135 +146,118 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Contenido principal */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Mensaje de bienvenida */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
-            ¡Bienvenido, {userProfile?.full_name?.split(' ')[0] || 'Tiguer'}! 👋
+        <div className="text-center mb-8 sm:mb-10">
+          <h2 className="font-display text-4xl md:text-6xl text-dominican-blue mb-2">
+            ¡Klk, {userProfile?.full_name?.split(' ')[0] || 'tiguer'}!
           </h2>
-          <p className="text-xl text-gray-600 mb-2">
+          <p className="text-lg sm:text-xl font-semibold text-gray-600">
             ¿Qué quieres hacer hoy?
-          </p>
-          <p className="text-gray-500">
-            Escoge una opción para comenzar la diversión
           </p>
         </div>
 
         {/* Opciones de juego */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-10">
           {gameOptions.map((option) => (
-            <div
+            <button
               key={option.id}
               onClick={option.action}
-              className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 group"
+              className={`${option.color} tablita group flex flex-col items-center text-center rounded-2xl border-4 border-white px-3 py-6 sm:p-8 text-white shadow-lg transition-all duration-200 hover:-translate-y-1 hover:brightness-110 active:scale-95`}
             >
-              <div className={`w-16 h-16 bg-${option.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                <option.icon className="w-8 h-8 text-white" />
-              </div>
+              <span className="w-16 h-16 bg-white rounded-full shadow flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <option.icon className={`w-8 h-8 ${option.iconColor}`} />
+              </span>
               
-              <h3 className="text-xl font-bold text-gray-800 mb-3">
+              <span className="font-display text-xl sm:text-2xl mb-1">
                 {option.title}
-              </h3>
+              </span>
               
-              <p className="text-gray-600 text-sm leading-relaxed">
+              <span className="text-sm font-semibold text-white/90 leading-snug">
                 {option.description}
-              </p>
-            </div>
+              </span>
+            </button>
           ))}
         </div>
 
         {/* Estadísticas rápidas */}
-        <div className="bg-white rounded-2xl p-8 shadow-lg">
-          <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            🎯 Estadísticas del Juego
+        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-lg">
+          <h3 className="font-display text-2xl text-dominican-blue mb-4 text-center">
+            Así va el juego
           </h3>
           
-          <div className="grid md:grid-cols-3 gap-6 text-center">
-            <div className="p-4">
-              <div className="text-3xl font-bold text-dominican-blue mb-2">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-arena rounded-2xl p-3 sm:p-4">
+              <div className="font-display text-3xl sm:text-4xl text-dominican-blue">
                 {loadingStats ? (
                   <div className="animate-pulse bg-gray-300 h-8 w-16 mx-auto rounded"></div>
                 ) : (
                   `${stats.activeUsers}${stats.activeUsers > 0 ? '+' : ''}`
                 )}
               </div>
-              <p className="text-gray-600">Jugadores Activos</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-600">Jugadores activos</p>
             </div>
             
-            <div className="p-4">
-              <div className="text-3xl font-bold text-dominican-red mb-2">
+            <div className="bg-arena rounded-2xl p-3 sm:p-4">
+              <div className="font-display text-3xl sm:text-4xl text-dominican-red">
                 {loadingStats ? (
                   <div className="animate-pulse bg-gray-300 h-8 w-16 mx-auto rounded"></div>
                 ) : (
                   stats.totalGames
                 )}
               </div>
-              <p className="text-gray-600">Trivias Disponibles</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-600">Trivias disponibles</p>
             </div>
             
-            <div className="p-4">
-              <div className="text-3xl font-bold text-green-600 mb-2">
+            <div className="bg-arena rounded-2xl p-3 sm:p-4">
+              <div className="font-display text-3xl sm:text-4xl text-palma">
                 {loadingStats ? (
                   <div className="animate-pulse bg-gray-300 h-8 w-16 mx-auto rounded"></div>
                 ) : (
                   stats.totalMatches.toLocaleString()
                 )}
               </div>
-              <p className="text-gray-600">Partidas Jugadas</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-600">Partidas jugadas</p>
             </div>
           </div>
         </div>
 
         {/* Instrucciones rápidas */}
-        <div className="mt-12 bg-gradient-to-r from-dominican-blue to-dominican-blue-light rounded-2xl p-8 text-white">
-          <h3 className="text-2xl font-bold mb-6 text-center">
-            🚀 ¿Cómo Jugar?
+        <div className="mt-8 bg-dominican-blue rounded-2xl p-6 sm:p-8 text-white shadow-lg">
+          <h3 className="font-display text-2xl mb-5 text-center">
+            ¿Cómo se juega?
           </h3>
           
-          <div className="grid md:grid-cols-3 gap-6 text-center">
-            <div>
-              <div className="text-4xl mb-3">1️⃣</div>
-              <h4 className="font-semibold mb-2">Escoge tu Modo</h4>
-              <p className="text-blue-100 text-sm">
-                Crea una sala, únete a una existente, o juega solo
-              </p>
-            </div>
-            
-            <div>
-              <div className="text-4xl mb-3">2️⃣</div>
-              <h4 className="font-semibold mb-2">Invita Amigos</h4>
-              <p className="text-blue-100 text-sm">
-                Comparte el código de sala o código QR
-              </p>
-            </div>
-            
-            <div>
-              <div className="text-4xl mb-3">3️⃣</div>
-              <h4 className="font-semibold mb-2">¡A Jugar!</h4>
-              <p className="text-blue-100 text-sm">
-                Responde las preguntas y compite por el primer lugar
-              </p>
-            </div>
+          <div className="grid md:grid-cols-3 gap-5 text-center">
+            {[
+              { title: 'Escoge tu modo', text: 'Crea una sala, únete a una existente o juega solo' },
+              { title: 'Invita a tu gente', text: 'Comparte el código de la sala o el código QR' },
+              { title: '¡A jugar!', text: 'Responde rápido y pelea por el primer lugar' }
+            ].map((step, index) => (
+              <div key={step.title}>
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white text-dominican-red font-display text-2xl flex items-center justify-center">
+                  {index + 1}
+                </div>
+                <h4 className="font-display text-lg mb-1">{step.title}</h4>
+                <p className="text-white/80 text-sm font-semibold">{step.text}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Footer */}
-      <div className="bg-gray-800 text-white py-8">
+      <footer className="bg-dominican-blue-dark text-white py-6">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-gray-300 mb-2">
+          <p className="text-white/80 font-semibold text-sm mb-1">
             Hecho con ❤️ para la comunidad dominicana
           </p>
-          <div className="flex justify-center items-center gap-2">
-            <span className="text-2xl">🇩🇴</span>
-            <span className="text-gray-300">KLKTUSABES v1.0</span>
-            <span className="text-2xl">🇩🇴</span>
-          </div>
+          <p className="text-white/60 text-xs font-semibold">🇩🇴 KLKTUSABES v1.0 🇩🇴</p>
         </div>
-      </div>
+      </footer>
     </div>
   )
 }

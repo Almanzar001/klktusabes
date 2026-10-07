@@ -152,18 +152,18 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={onBack}
-              className="text-dominican-blue hover:text-dominican-blue-light"
+              className="text-white/85 hover:text-white"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-800">
+            <h1 className="font-display text-2xl text-white">
               Crear Nueva Sala
             </h1>
           </div>
@@ -172,19 +172,19 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
 
       <div className="max-w-4xl mx-auto px-6 py-8">
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-dominican-red/10 border border-dominican-red/40 text-dominican-red rounded-lg">
             {error}
           </div>
         )}
 
         {/* Formulario de configuración */}
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-xl shadow-lg p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-dominican-blue rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              <h2 className="text-2xl font-display text-dominican-blue mb-2">
                 Configurar tu Sala
               </h2>
               <p className="text-gray-600 mb-4">
@@ -193,14 +193,14 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
               
               {/* Juego seleccionado */}
               {selectedGame && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="bg-palma/10 border border-palma/40 rounded-lg p-4">
                   <div className="flex items-center justify-center gap-3">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                    <div className="w-12 h-12 bg-palma rounded-full flex items-center justify-center">
                       <Play className="w-6 h-6 text-white" />
                     </div>
                     <div className="text-left">
-                      <h3 className="font-bold text-green-800">{selectedGame.title}</h3>
-                      <p className="text-sm text-green-600">
+                      <h3 className="font-bold text-palma">{selectedGame.title}</h3>
+                      <p className="text-sm text-palma">
                         {selectedGame.questions?.length || 0} preguntas
                       </p>
                     </div>
@@ -237,11 +237,11 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
                     aria-pressed={hostPlays}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${
                       hostPlays
-                        ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                        ? 'border-dominican-blue bg-arena ring-2 ring-dominican-blue ring-opacity-50'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
-                    <span className="flex items-center gap-2 font-bold text-gray-800">
+                    <span className="flex items-center gap-2 font-bold text-dominican-blue-dark">
                       <Gamepad2 className="w-5 h-5 text-dominican-blue" />
                       Voy a jugar
                     </span>
@@ -255,11 +255,11 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
                     aria-pressed={!hostPlays}
                     className={`p-4 rounded-lg border-2 text-left transition-all ${
                       !hostPlays
-                        ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                        ? 'border-dominican-blue bg-arena ring-2 ring-dominican-blue ring-opacity-50'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
-                    <span className="flex items-center gap-2 font-bold text-gray-800">
+                    <span className="flex items-center gap-2 font-bold text-dominican-blue-dark">
                       <Presentation className="w-5 h-5 text-dominican-blue" />
                       Solo dirijo la partida
                     </span>
@@ -299,7 +299,7 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
                           onClick={() => setSelectedAvatar(avatar)}
                           className={`p-2 rounded-lg border-2 transition-all hover:scale-105 ${
                             selectedAvatar === avatar
-                              ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                              ? 'border-dominican-blue bg-arena ring-2 ring-dominican-blue ring-opacity-50'
                               : 'border-gray-300 hover:border-gray-400'
                           }`}
                         >

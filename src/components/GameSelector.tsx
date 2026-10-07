@@ -35,18 +35,18 @@ const GameSelector: React.FC<GameSelectorProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={onBack}
-              className="text-dominican-blue hover:text-dominican-blue-light"
+              className="text-white/85 hover:text-white"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+            <h1 className="font-display text-2xl text-white">{title}</h1>
           </div>
         </div>
       </div>
@@ -72,7 +72,7 @@ const GameSelector: React.FC<GameSelectorProps> = ({
             <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <HelpCircle className="w-12 h-12 text-gray-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+            <h3 className="text-xl font-semibold text-dominican-blue-dark mb-2">
               {searchTerm ? 'No se encontraron juegos' : 'No hay juegos disponibles'}
             </h3>
             <p className="text-gray-600 mb-6">
@@ -97,16 +97,16 @@ const GameSelector: React.FC<GameSelectorProps> = ({
               <div
                 key={game.id}
                 onClick={() => handleGameSelect(game)}
-                className={`bg-white rounded-xl shadow-lg p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 ${
+                className={`bg-white rounded-2xl shadow-lg p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 ${
                   selectedGame?.id === game.id
-                    ? 'ring-2 ring-dominican-blue bg-blue-50'
-                    : 'hover:bg-gray-50'
+                    ? 'ring-2 ring-dominican-blue bg-arena'
+                    : 'hover:bg-arena'
                 }`}
               >
                 {/* Header del juego */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2">
+                    <h3 className="text-lg font-bold text-dominican-blue-dark mb-2 line-clamp-2">
                       {game.title}
                     </h3>
                     {game.description && (
@@ -167,7 +167,7 @@ const GameSelector: React.FC<GameSelectorProps> = ({
                   <Play className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-800">{selectedGame.title}</h4>
+                  <h4 className="font-semibold text-dominican-blue-dark">{selectedGame.title}</h4>
                   <p className="text-sm text-gray-600">
                     {selectedGame.questions?.length || 0} preguntas • 
                     {' '}~{Math.ceil((selectedGame.questions?.reduce((acc, q) => acc + q.time_limit, 0) || 0) / 60)} min

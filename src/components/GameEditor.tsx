@@ -204,9 +204,9 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
   // Verificar si el usuario tiene permisos
   if (!isCreator) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen fondo-caribe flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Acceso Restringido</h2>
+          <h2 className="text-2xl font-display text-dominican-blue mb-4">Acceso Restringido</h2>
           <p className="text-gray-600 mb-6">Solo los usuarios creadores pueden acceder al editor de juegos.</p>
           <button onClick={onBack} className="btn-dominican-primary">
             Volver al Inicio
@@ -232,26 +232,26 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen fondo-caribe">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="cabecera">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
+                className="text-white/85 hover:text-white"
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="font-display text-2xl text-white">
                 Editor de Juegos
               </h1>
             </div>
             
             <button
               onClick={() => setShowNewGameForm(true)}
-              className="btn-dominican-primary"
+              className="btn-dominican-secondary py-2 px-4 text-base"
             >
               <Plus className="w-5 h-5 mr-2" />
               Nuevo Juego
@@ -263,7 +263,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-dominican-red/10 border border-dominican-red/40 text-dominican-red rounded-lg">
             {error}
           </div>
         )}
@@ -271,8 +271,8 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Lista de juegos */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Mis Juegos</h2>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-display text-dominican-blue mb-4">Mis Juegos</h2>
               
               {loading ? (
                 <div className="text-center py-8">
@@ -298,7 +298,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                       className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
                         selectedGame?.id === game.id
                           ? 'bg-dominican-blue text-white'
-                          : 'bg-gray-50 hover:bg-gray-100'
+                          : 'bg-arena hover:bg-gray-100'
                       }`}
                     >
                       <h3 className="font-semibold truncate">{game.title}</h3>
@@ -317,16 +317,16 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
           {/* Detalles del juego seleccionado */}
           <div className="lg:col-span-2">
             {selectedGame ? (
-              <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-bold text-gray-800">
+                      <h2 className="text-2xl font-display text-dominican-blue">
                         {selectedGame.title}
                       </h2>
                       <button
                         onClick={() => handleEditGame(selectedGame)}
-                        className="text-blue-600 hover:text-blue-800 p-1"
+                        className="text-dominican-blue hover:text-dominican-blue p-1"
                         title="Editar juego"
                       >
                         <Edit className="w-5 h-5" />
@@ -350,7 +350,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
 
                 {/* Lista de preguntas */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
+                  <h3 className="text-lg font-semibold text-dominican-blue-dark">
                     Preguntas ({selectedGame.questions?.length || 0})
                   </h3>
                   
@@ -358,7 +358,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                     selectedGame.questions.map((question, index) => (
                       <div
                         key={question.id}
-                        className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                        className="p-4 border border-gray-200 rounded-lg hover:bg-arena"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -370,7 +370,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                                 {question.time_limit}s
                               </span>
                             </div>
-                            <p className="font-semibold text-gray-800 mb-2">
+                            <p className="font-semibold text-dominican-blue-dark mb-2">
                               {question.text}
                             </p>
                             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -379,7 +379,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                                   key={optIndex}
                                   className={`p-2 rounded ${
                                     optIndex === question.correct_answer
-                                      ? 'bg-green-100 text-green-800 border border-green-300'
+                                      ? 'bg-palma/10 text-palma border border-palma/40'
                                       : 'bg-gray-100'
                                   }`}
                                 >
@@ -395,13 +395,13 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                           <div className="flex items-center gap-2 ml-4">
                             <button
                               onClick={() => handleEditQuestion(question)}
-                              className="text-blue-600 hover:text-blue-800 p-1"
+                              className="text-dominican-blue hover:text-dominican-blue p-1"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteQuestion(question.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-dominican-red hover:text-dominican-red p-1"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -425,8 +425,8 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <h2 className="text-xl font-semibold text-dominican-blue-dark mb-4">
                   Selecciona un Juego
                 </h2>
                 <p className="text-gray-600">
@@ -442,7 +442,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       {showNewGameForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-6">
               Crear Nuevo Juego
             </h3>
             
@@ -503,7 +503,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       {showEditGameForm && editingGame && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
+            <h3 className="text-xl font-bold text-dominican-blue-dark mb-6">
               Editar Juego
             </h3>
             

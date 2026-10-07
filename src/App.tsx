@@ -32,11 +32,11 @@ const AppContent: React.FC = () => {
   // Mostrar loading mientras se verifica la autenticación (excepto para acceso QR)
   if (loading && !isQRAccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-dominican-blue to-dominican-red flex items-center justify-center">
+      <div className="min-h-screen fondo-caribe flex items-center justify-center">
         <div className="text-center">
           <div className="loading-spinner mx-auto mb-4"></div>
-          <h2 className="text-white text-xl font-semibold">Cargando KLKTUSABES...</h2>
-          <p className="text-blue-100 mt-2">Preparando la experiencia dominicana</p>
+          <h2 className="font-display text-3xl text-dominican-blue">KLKTUSABES</h2>
+          <p className="text-gray-600 font-semibold mt-1">Preparando la trivia dominicana…</p>
         </div>
       </div>
     )
