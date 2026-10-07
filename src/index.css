@@ -237,3 +237,17 @@
     transparent 20px
   );
 }
+
+/* Barra que se vacía mientras se muestra la pregunta antes de abrir las respuestas */
+@keyframes vaciarBarra {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-vaciar-barra {
+  animation: vaciarBarra linear forwards;
+}

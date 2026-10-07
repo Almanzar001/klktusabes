@@ -181,7 +181,12 @@ export const generateQRCode = (): string => {
   return result
 }
 
-export const calculatePoints = (isCorrect: boolean, timeToAnswer: number): number => {
+// Puntos de una respuesta: hasta 1000 por acertar; se pierde hasta la mitad
+// según lo que se tarde respecto al tiempo de la pregunta. Incorrecta = 0.
+// Es la misma fórmula que kahoot_points en la base de datos (salas multijugador).
+export const calculatePoints = (isCorrect: boolean, timeToAnswer: number, timeLimitSeconds: number): number => {
   if (!isCorrect) return 0
-  return Math.round(POINTS_BASE / (timeToAnswer / 1000 + 1))
+  if (timeToAnswer <= 500) return POINTS_BASE
+  const limitMs = timeLimitSeconds * 1000
+  return Math.max(POINTS_BASE / 2, Math.round(POINTS_BASE * (1 - (timeToAnswer / limitMs) / 2)))
 }

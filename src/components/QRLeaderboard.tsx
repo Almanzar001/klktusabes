@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Trophy, Medal, Award, RefreshCw, ArrowLeft, Crown } from 'lucide-react'
+import { Trophy, RefreshCw, ArrowLeft, Crown } from 'lucide-react'
 import { insforge } from '../insforge'
 
 interface LeaderboardEntry {
@@ -86,36 +86,19 @@ const QRLeaderboard: React.FC<QRLeaderboardProps> = ({
     fetchLeaderboard()
   }, [qrSessionId])
 
-  const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return <Crown className="w-6 h-6 text-yellow-500" />
-      case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />
-      case 3:
-        return <Award className="w-6 h-6 text-orange-600" />
-      default:
-        return <span className="w-6 h-6 flex items-center justify-center text-gray-600 font-bold">{rank}</span>
-    }
-  }
+  // Oro, plata y bronce para los tres primeros
+  const rankBadge = (rank: number) => {
+    const color =
+      rank === 1 ? 'bg-yellow-400 text-dominican-blue-dark'
+      : rank === 2 ? 'bg-slate-300 text-dominican-blue-dark'
+      : rank === 3 ? 'bg-amber-600 text-white'
+      : 'bg-white text-dominican-blue'
 
-  const getRankStyle = (rank: number, isCurrentPlayer: boolean) => {
-    const baseStyle = "flex items-center gap-4 p-4 rounded-lg border transition-all duration-200"
-    
-    if (isCurrentPlayer) {
-      return `${baseStyle} bg-blue-50 border-blue-300 ring-2 ring-blue-200`
-    }
-    
-    switch (rank) {
-      case 1:
-        return `${baseStyle} bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300`
-      case 2:
-        return `${baseStyle} bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300`
-      case 3:
-        return `${baseStyle} bg-gradient-to-r from-orange-50 to-orange-100 border-orange-300`
-      default:
-        return `${baseStyle} bg-white border-gray-200 hover:bg-gray-50`
-    }
+    return (
+      <span className={`${color} w-10 h-10 shrink-0 rounded-full flex items-center justify-center font-display text-xl shadow`}>
+        {rank === 1 ? <Crown className="w-5 h-5" /> : rank}
+      </span>
+    )
   }
 
   const formatTime = (seconds: number) => {
@@ -128,162 +111,147 @@ const QRLeaderboard: React.FC<QRLeaderboardProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen fondo-caribe flex items-center justify-center">
         <div className="text-center">
           <div className="loading-spinner mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-800">Cargando Leaderboard...</h2>
+          <h2 className="font-bold text-dominican-blue">Cargando la tabla de posiciones…</h2>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBack}
-              className="text-dominican-blue hover:text-dominican-blue-light"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-800">Leaderboard</h1>
-              <p className="text-gray-600">{sessionTitle}</p>
-            </div>
-            <button
-              onClick={fetchLeaderboard}
-              className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100"
-              title="Actualizar"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
+    <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+      <header className="bg-dominican-blue text-white shadow-md">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 max-w-4xl mx-auto">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm font-bold text-white/85 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Volver
+          </button>
+          <div className="text-center min-w-0">
+            <p className="font-display text-lg leading-tight truncate">Tabla de posiciones</p>
+            <p className="text-xs font-semibold text-white/80 truncate">{sessionTitle}</p>
           </div>
+          <button
+            onClick={fetchLeaderboard}
+            className="p-1.5 rounded-full bg-white/15 hover:bg-white/25"
+            title="Actualizar"
+            aria-label="Actualizar"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+        {/* franja de la bandera */}
+        <div className="h-1 bg-white" />
+        <div className="h-1.5 bg-dominican-red" />
+      </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-4 pb-6 space-y-4">
         {error ? (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <div className="px-4 py-3 bg-dominican-red text-white rounded-xl font-semibold text-sm">
             {error}
           </div>
         ) : (
           <>
+            <h2 className="flex items-center justify-center gap-3 font-display text-4xl text-dominican-blue">
+              <Trophy className="w-9 h-9 text-ambar" />
+              ¡Los duros!
+            </h2>
+
             {/* Estadísticas generales */}
-            <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-              <div className="flex items-center gap-3 mb-4">
-                <Trophy className="w-6 h-6 text-yellow-500" />
-                <h2 className="text-xl font-bold text-gray-800">Mejores Puntuaciones</h2>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-white rounded-2xl shadow-lg p-3">
+                <div className="font-display text-3xl text-dominican-red tabular-nums">{leaderboard.length}</div>
+                <div className="text-xs font-bold text-gray-600">Participantes</div>
               </div>
-              
-              <div className="grid md:grid-cols-3 gap-4 text-center">
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{leaderboard.length}</div>
-                  <div className="text-sm text-purple-800">Participantes</div>
+
+              <div className="bg-white rounded-2xl shadow-lg p-3">
+                <div className="font-display text-3xl text-palma tabular-nums">{leaderboard[0]?.total_score || 0}</div>
+                <div className="text-xs font-bold text-gray-600">Mejor puntuación</div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-lg p-3">
+                <div className="font-display text-3xl text-larimar tabular-nums">
+                  {leaderboard.length > 0
+                    ? Math.round(leaderboard.reduce((acc, entry) => acc + entry.total_score, 0) / leaderboard.length)
+                    : 0}
                 </div>
-                
-                {leaderboard.length > 0 && (
-                  <>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{leaderboard[0]?.total_score || 0}</div>
-                      <div className="text-sm text-green-800">Mejor Puntuación</div>
-                    </div>
-                    
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {Math.round(leaderboard.reduce((acc, entry) => acc + entry.total_score, 0) / leaderboard.length)}
-                      </div>
-                      <div className="text-sm text-blue-800">Promedio</div>
-                    </div>
-                  </>
-                )}
+                <div className="text-xs font-bold text-gray-600">Promedio</div>
               </div>
             </div>
 
             {/* Tabla de posiciones */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="p-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-                <h3 className="text-xl font-bold">Tabla de Posiciones</h3>
-                <p className="text-purple-100">Los mejores jugadores de esta sesión</p>
+            {leaderboard.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-bold">Aún no hay resultados en esta sesión</p>
+                <p className="text-sm text-gray-600">¡Sé el primero en jugar!</p>
               </div>
+            ) : (
+              <ol className="space-y-2">
+                {leaderboard.map((entry) => {
+                  const isCurrentPlayer = !!currentPlayerName && entry.player_name === currentPlayerName
 
-              {leaderboard.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Trophy className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>Aún no hay resultados en esta sesión</p>
-                  <p className="text-sm">¡Sé el primero en jugar!</p>
-                </div>
-              ) : (
-                <div className="p-6 space-y-3">
-                  {leaderboard.map((entry) => {
-                    const isCurrentPlayer = currentPlayerName && entry.player_name === currentPlayerName
-                    
-                    return (
-                      <div
-                        key={`${entry.player_name}-${entry.total_score}`}
-                        className={getRankStyle(entry.rank, !!isCurrentPlayer)}
-                      >
-                        <div className="flex items-center gap-3">
-                          {getRankIcon(entry.rank)}
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-800">
-                              {entry.player_name}
-                              {isCurrentPlayer && (
-                                <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
-                                  Tú
-                                </span>
-                              )}
-                            </h4>
-                            <div className="text-sm text-gray-600">
-                              {formatAccuracy(entry.total_correct, entry.total_questions)} de precisión
-                              {entry.avg_time > 0 && ` • ${formatTime(entry.avg_time)} promedio`}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-gray-800">
-                              {entry.total_score}
-                            </div>
-                            <div className="text-xs text-gray-500">puntos</div>
-                          </div>
-                        </div>
+                  return (
+                    <li
+                      key={`${entry.player_name}-${entry.total_score}`}
+                      className={`flex items-center gap-3 rounded-2xl px-3 py-3 shadow ${
+                        isCurrentPlayer ? 'bg-dominican-blue text-white' : 'bg-white'
+                      }`}
+                    >
+                      {rankBadge(entry.rank)}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold truncate">
+                          {entry.player_name}
+                          {isCurrentPlayer && (
+                            <span className="ml-2 text-xs bg-white text-dominican-blue px-2 py-0.5 rounded-full">
+                              Tú
+                            </span>
+                          )}
+                        </p>
+                        <p className={`text-xs font-semibold ${isCurrentPlayer ? 'text-white/80' : 'text-gray-600'}`}>
+                          {formatAccuracy(entry.total_correct, entry.total_questions)} de precisión
+                          {entry.avg_time > 0 && ` · ${formatTime(entry.avg_time)} promedio`}
+                        </p>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-display text-2xl tabular-nums">{entry.total_score}</div>
+                        <div className={`text-[10px] font-bold uppercase ${isCurrentPlayer ? 'text-white/80' : 'text-gray-500'}`}>puntos</div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
 
             {/* Acciones */}
-            <div className="mt-8 flex gap-4 justify-center">
+            <div className="flex flex-wrap gap-3 pt-2">
               {onPlayAgain && (
                 <button
                   onClick={onPlayAgain}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
+                  className="flex-1 min-w-[10rem] bg-dominican-red hover:bg-dominican-red-light text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_1px_0_#A50E1E]"
                 >
-                  🎮 Jugar de Nuevo
+                  Jugar de nuevo
                 </button>
               )}
-              
+
               <button
                 onClick={onBack}
-                className="btn-dominican-outline py-3 px-6"
+                className="flex-1 min-w-[10rem] bg-dominican-blue hover:bg-dominican-blue-light text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#001A3A] transition-all active:translate-y-1 active:shadow-[0_1px_0_#001A3A]"
               >
-                Volver al Juego
+                Volver a mis resultados
               </button>
             </div>
 
-            {/* Información adicional */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
-              <p className="text-blue-800 text-sm">
-                💡 <strong>Tip:</strong> El leaderboard se actualiza automáticamente cuando otros jugadores completan el juego.
-                Comparte el código QR para que más personas participen.
-              </p>
-            </div>
+            <p className="text-center text-sm text-gray-600 font-semibold">
+              Toca actualizar para ver los resultados de quienes terminen después.
+            </p>
           </>
         )}
-      </div>
+      </main>
     </div>
   )
 }

@@ -147,88 +147,97 @@ const QRGameAccess: React.FC<QRGameAccessProps> = ({ onBack }) => {
     setAccessCode(cleanValue)
   }
 
+  // Cabecera común: azul con la franja de la bandera
+  const header = (onLeave: () => void) => (
+    <header className="bg-dominican-blue text-white shadow-md">
+      <div className="flex items-center gap-3 px-4 py-3 max-w-4xl mx-auto">
+        <button
+          onClick={onLeave}
+          className="flex items-center gap-1.5 text-sm font-bold text-white/85 hover:text-white"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Volver
+        </button>
+        <p className="flex-1 text-center font-display text-lg leading-tight truncate pr-16">
+          {qrSession?.title || 'Acceso por QR'}
+        </p>
+      </div>
+      {/* franja de la bandera */}
+      <div className="h-1 bg-white" />
+      <div className="h-1.5 bg-dominican-red" />
+    </header>
+  )
+
+  const primaryButton = 'w-full flex items-center justify-center gap-2 bg-dominican-red hover:bg-dominican-red-light text-white font-display text-2xl py-4 rounded-2xl shadow-[0_6px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_2px_0_#A50E1E] disabled:opacity-50 disabled:cursor-not-allowed'
+
+  const gameFacts = (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="bg-arena p-4 rounded-2xl text-center">
+        <div className="font-display text-4xl text-dominican-red">{currentGame?.questions?.length || 0}</div>
+        <p className="text-gray-600 font-bold text-sm">Preguntas</p>
+      </div>
+      <div className="bg-arena p-4 rounded-2xl text-center">
+        <div className="font-display text-4xl text-dominican-red">
+          ~{Math.ceil((currentGame?.questions?.reduce((acc, q) => acc + q.time_limit, 0) || 0) / 60)}
+        </div>
+        <p className="text-gray-600 font-bold text-sm">Minutos</p>
+      </div>
+    </div>
+  )
+
   // Si está mostrando el input de nombre
   if (showNameInput && qrSession && currentGame) {
+    const leaveNameInput = () => {
+      setShowNameInput(false)
+      setPlayerName('')
+      setError(null)
+    }
+
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+        {header(leaveNameInput)}
+
+        <main className="flex-1 flex flex-col items-center justify-center w-full max-w-md mx-auto px-4 py-6">
+          <div className="w-full bg-white rounded-2xl shadow-xl border-t-8 border-dominican-red p-6 sm:p-8">
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Play className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                ¡Listo para Jugar!
-              </h2>
-              <p className="text-gray-600 mb-2">
-                {qrSession.title}
-              </p>
-              <p className="text-sm text-gray-500">
-                Ingresa tu nombre para comenzar el juego
+              <h2 className="font-display text-3xl text-dominican-blue">¿Cómo te llamas?</h2>
+              <p className="text-gray-600 font-semibold text-sm">
+                Con ese nombre saldrás en la tabla de posiciones
               </p>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+              <div className="mb-4 px-4 py-3 bg-dominican-red text-white rounded-xl font-semibold text-sm">
                 {error}
               </div>
             )}
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tu Nombre *
-                </label>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  placeholder="Ingresa tu nombre"
-                  maxLength={30}
-                  onKeyPress={(e) => e.key === 'Enter' && handleNameSubmitAndStart()}
-                  autoFocus
-                />
-              </div>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                className="w-full p-4 text-center text-xl font-bold bg-arena border-2 border-dominican-blue/20 rounded-2xl focus:outline-none focus:border-dominican-blue"
+                placeholder="Tu nombre"
+                aria-label="Tu nombre"
+                maxLength={30}
+                onKeyPress={(e) => e.key === 'Enter' && handleNameSubmitAndStart()}
+                autoFocus
+              />
 
               <button
                 onClick={handleNameSubmitAndStart}
                 disabled={!playerName.trim() || loading}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={primaryButton}
               >
-                <Play className="w-5 h-5 mr-2 inline" />
-                {loading ? 'Verificando...' : 'Comenzar Juego'}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowNameInput(false)
-                  setPlayerName('')
-                  setError(null)
-                }}
-                className="w-full btn-dominican-outline py-3 px-6"
-              >
-                Volver
+                <Play className="w-6 h-6" />
+                {loading ? 'Verificando…' : '¡Arrancar!'}
               </button>
             </div>
 
-            {/* Información del juego */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-semibold text-blue-800">Preguntas:</span>
-                  <p className="text-blue-600">{currentGame?.questions?.length || 0}</p>
-                </div>
-                <div>
-                  <span className="font-semibold text-blue-800">Duración:</span>
-                  <p className="text-blue-600">
-                    ~{Math.ceil((currentGame?.questions?.reduce((acc, q) => acc + q.time_limit, 0) || 0) / 60)} min
-                  </p>
-                </div>
-              </div>
-            </div>
+            <div className="mt-6">{gameFacts}</div>
           </div>
-        </div>
+        </main>
       </div>
     )
   }
@@ -248,177 +257,87 @@ const QRGameAccess: React.FC<QRGameAccessProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBack}
-              className="text-dominican-blue hover:text-dominican-blue-light"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-800">Acceso por QR</h1>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+      {header(onBack)}
 
-      <div className="max-w-2xl mx-auto px-6 py-8">
+      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-md mx-auto px-4 py-6">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          <div className="w-full mb-4 px-4 py-3 bg-dominican-red text-white rounded-xl font-semibold text-sm">
             {error}
           </div>
         )}
 
         {!qrSession ? (
           // Formulario de acceso
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <QrCode className="w-8 h-8 text-white" />
+          <div className="w-full bg-white rounded-2xl shadow-xl border-t-8 border-dominican-red p-6 sm:p-8">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-dominican-blue rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <QrCode className="w-9 h-9 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Acceso por Código QR
-              </h2>
-              <p className="text-gray-600">
-                Ingresa el código de acceso o escanea un código QR
+              <h2 className="font-display text-3xl text-dominican-blue">Entra con tu código</h2>
+              <p className="text-gray-600 font-semibold text-sm">
+                Escanea el QR con la cámara o escribe el código de 10 caracteres
               </p>
             </div>
 
-            <div className="space-y-6">
-              {/* Código de acceso */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Código de Acceso *
-                </label>
-                <input
-                  type="text"
-                  value={accessCode}
-                  onChange={(e) => handleCodeChange(e.target.value)}
-                  className="w-full p-4 text-center text-xl font-bold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 tracking-widest"
-                  placeholder="ABC123DEF0"
-                  maxLength={10}
-                />
-                <p className="text-xs text-gray-500 mt-1 text-center">
-                  Código de 10 caracteres (letras y números)
-                </p>
-              </div>
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={accessCode}
+                onChange={(e) => handleCodeChange(e.target.value)}
+                className="w-full p-4 text-center font-display text-3xl tracking-widest text-dominican-blue bg-arena border-2 border-dominican-blue/20 rounded-2xl focus:outline-none focus:border-dominican-blue"
+                placeholder="ABC123DEF0"
+                aria-label="Código de acceso"
+                maxLength={10}
+              />
 
               <button
                 onClick={() => handleAccessGame()}
                 disabled={!accessCode.trim() || accessCode.length !== 10 || loading}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                className={primaryButton}
               >
-                <Search className="w-5 h-5 mr-2 inline" />
-                {loading ? 'Buscando...' : 'Acceder al Juego'}
+                <Search className="w-6 h-6" />
+                {loading ? 'Buscando…' : 'Buscar el juego'}
               </button>
             </div>
 
-            {/* Instrucciones */}
-            <div className="mt-8 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-              <h3 className="font-semibold text-purple-800 mb-2">
-                📱 ¿Cómo usar el acceso QR?
-              </h3>
-              <ul className="text-sm text-purple-700 space-y-1">
-                <li>• <strong>Escanea</strong> el código QR con la cámara de tu teléfono</li>
-                <li>• <strong>O ingresa</strong> manualmente el código de 10 caracteres</li>
-                <li>• <strong>Accede</strong> directamente al juego sin crear salas</li>
-                <li>• <strong>Juega</strong> de forma individual a tu ritmo</li>
-              </ul>
-            </div>
-
-            {/* Cómo escanear QR */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="font-semibold text-blue-800 mb-2">
-                📸 ¿Cómo escanear un código QR?
-              </h3>
-              <div className="text-sm text-blue-700 space-y-2">
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold min-w-fit">iPhone:</span>
-                  <span>Abre la cámara y apunta al QR. Toca la notificación que aparece.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold min-w-fit">Android:</span>
-                  <span>Abre Google Lens o la cámara (modo QR) y apunta al código.</span>
-                </div>
-              </div>
+            <div className="mt-6 p-4 bg-arena rounded-2xl text-sm text-gray-700 space-y-1">
+              <p><strong>iPhone:</strong> abre la cámara, apunta al QR y toca el aviso.</p>
+              <p><strong>Android:</strong> usa la cámara en modo QR o Google Lens.</p>
             </div>
           </div>
         ) : (
           // Vista previa del juego encontrado
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Play className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                ¡Sesión Encontrada!
-              </h2>
-              <p className="text-gray-600">
-                Listo para comenzar el juego
+          <div className="w-full bg-white rounded-2xl shadow-xl border-t-8 border-dominican-red p-6 sm:p-8 text-center">
+            <p className="font-display text-xl text-palma">¡Lo encontramos!</p>
+            <h2 className="font-display text-3xl sm:text-4xl text-dominican-blue mb-1">
+              {currentGame?.title}
+            </h2>
+
+            {qrSession.description && (
+              <p className="text-gray-600 font-semibold mb-2">
+                {qrSession.description}
               </p>
-            </div>
+            )}
 
-            {/* Información del juego */}
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h3 className="text-xl font-bold text-gray-800 mb-2">
-                {qrSession.title}
-              </h3>
-              
-              {qrSession.description && (
-                <p className="text-gray-600 mb-4">
-                  {qrSession.description}
-                </p>
-              )}
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-5">
+              Código <span className="font-mono">{qrSession.access_code}</span>
+            </p>
 
-              <div className="grid md:grid-cols-2 gap-4 text-sm">
-                <div className="bg-white p-3 rounded">
-                  <span className="font-semibold text-gray-800">Juego:</span>
-                  <p className="text-gray-600">{currentGame?.title}</p>
-                </div>
-                
-                <div className="bg-white p-3 rounded">
-                  <span className="font-semibold text-gray-800">Preguntas:</span>
-                  <p className="text-gray-600">{currentGame?.questions?.length || 0}</p>
-                </div>
-                
-                <div className="bg-white p-3 rounded">
-                  <span className="font-semibold text-gray-800">Duración estimada:</span>
-                  <p className="text-gray-600">
-                    ~{Math.ceil((currentGame?.questions?.reduce((acc, q) => acc + q.time_limit, 0) || 0) / 60)} minutos
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded">
-                  <span className="font-semibold text-gray-800">Código:</span>
-                  <p className="text-gray-600 font-mono">{qrSession.access_code}</p>
-                </div>
-              </div>
-            </div>
+            {gameFacts}
 
-            {/* Botones de acción */}
-            <div className="flex justify-center">
-              <button
-                onClick={handleStartGame}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
-              >
-                <Play className="w-5 h-5 mr-2 inline" />
-                Comenzar Juego
-              </button>
-            </div>
+            <button onClick={handleStartGame} className={`${primaryButton} mt-6`}>
+              <Play className="w-6 h-6" />
+              ¡Vamos a jugar!
+            </button>
 
-            {/* Información adicional */}
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 text-sm">
-                💡 <strong>Modo Individual:</strong> Este es un juego de acceso directo. 
-                Jugarás solo y podrás tomarte el tiempo que necesites para responder cada pregunta.
-              </p>
-            </div>
+            <p className="mt-5 text-sm text-gray-600 font-semibold">
+              Juegas por tu cuenta: ganas más puntos mientras más rápido aciertes.
+            </p>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

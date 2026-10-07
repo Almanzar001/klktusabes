@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Play, CheckCircle, X, RotateCcw, Trophy } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowLeft, Play, Check, X, RotateCcw, Trophy, Volume2, VolumeX } from 'lucide-react'
 import { gameHelpers, qrResultsHelpers, insforge } from '../insforge'
 import { Game, Question, calculatePoints } from '../types'
 import GameSelector from './GameSelector'
 import QRLeaderboard from './QRLeaderboard'
+import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
 import { useGameSounds } from '../hooks/useGameSounds'
 
 interface SinglePlayerGameProps {
@@ -28,8 +29,44 @@ interface ShuffledQuestion extends Question {
   correctAnswerIndex: number
 }
 
-const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({ 
-  onBack, 
+// Tiempo que se muestra la pregunta antes de abrir las respuestas, y el resultado antes de avanzar
+const INTRO_MS = 3000
+const REVEAL_MS = 2500
+
+// Función para mezclar array
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+// Función para mezclar opciones de una pregunta
+const shuffleQuestionOptions = (question: Question): ShuffledQuestion => {
+  const optionsWithIndex = question.options.map((option, index) => ({
+    option,
+    originalIndex: index
+  }))
+
+  const shuffledOptionsWithIndex = shuffleArray(optionsWithIndex)
+  const shuffledOptions = shuffledOptionsWithIndex.map(item => item.option)
+
+  // Encontrar el nuevo índice de la respuesta correcta
+  const correctAnswerIndex = shuffledOptionsWithIndex.findIndex(
+    item => item.originalIndex === question.correct_answer
+  )
+
+  return {
+    ...question,
+    shuffledOptions,
+    correctAnswerIndex
+  }
+}
+
+const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
+  onBack,
   game: initialGame,
   isQRSession = false,
   qrSessionTitle,
@@ -37,15 +74,19 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   playerName: initialPlayerName
 }) => {
   // Hook de sonidos
-  const { 
-    playCorrect, 
-    playIncorrect, 
-    playTick, 
-    playTimeUp, 
-    playGameStart, 
+  const {
+    playCorrect,
+    playIncorrect,
+    playTick,
+    playTimeUp,
+    playGameStart,
     playGameEnd,
+    startMusic,
+    stopMusic,
+    toggleMute,
+    isMuted,
     initializeAudio,
-    isAudioEnabled 
+    isAudioEnabled
   } = useGameSounds()
 
   // Estados principales
@@ -54,14 +95,15 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   const [shuffledQuestions, setShuffledQuestions] = useState<ShuffledQuestion[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [gameState, setGameState] = useState<'select' | 'playing' | 'results' | 'leaderboard' | 'name-input'>('select')
-  
+
   // Estados para sesiones QR
   const [playerName] = useState(initialPlayerName || '')
   const [, setSavingResults] = useState(false)
   const [qrResultsSaved, setQrResultsSaved] = useState(false) // Nueva bandera para evitar guardados múltiples
-  
+
   // Estados del juego
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
+  const [showIntro, setShowIntro] = useState(false) // se muestra la pregunta; las respuestas aún no se abren
   const [showAnswer, setShowAnswer] = useState(false)
   const [timeLeft, setTimeLeft] = useState(30)
   const [answers, setAnswers] = useState<Array<{
@@ -73,9 +115,20 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   }>>([])
   const [gameStartTime, setGameStartTime] = useState<number>(0)
   const [questionStartTime, setQuestionStartTime] = useState<number>(0)
-  
-  // Estados de la UI
-  // const [loading, setLoading] = useState(false) // Currently unused
+
+  // Temporizadores pendientes, para cancelarlos al salir de la pantalla
+  const pendingTimers = useRef<number[]>([])
+
+  const later = (callback: () => void, delay: number) => {
+    pendingTimers.current.push(window.setTimeout(callback, delay))
+  }
+
+  useEffect(() => {
+    return () => {
+      pendingTimers.current.forEach(window.clearTimeout)
+      stopMusic()
+    }
+  }, [stopMusic])
 
   const calculateResults = (): GameResult => {
     const totalQuestions = selectedGame?.questions?.length || 0
@@ -113,7 +166,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
       alert('Nombre inválido. Debe tener al menos 2 caracteres.')
       return
     }
-    
+
     setSavingResults(true)
     setQrResultsSaved(true) // Marcar como guardado antes de intentar
     try {
@@ -142,10 +195,10 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
 
       // Nota: Ya no verificamos si el jugador participó previamente
       // porque usamos UPSERT que actualiza automáticamente si ya existe
-      
+
       const results = calculateResults()
-      const avgTime = answers.length > 0 
-        ? answers.reduce((sum, a) => sum + a.timeToAnswer, 0) / answers.length / 1000 
+      const avgTime = answers.length > 0
+        ? answers.reduce((sum, a) => sum + a.timeToAnswer, 0) / answers.length / 1000
         : 0
 
       const gameData = {
@@ -176,7 +229,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
 
       if (error) {
         console.error('Error saving QR results:', error)
-        
+
         // Verificar si es un error de tabla no encontrada
         if (error.code === '42P01') {
           alert('Error: La tabla de resultados no existe. Por favor ejecuta la migración de base de datos antes de jugar.')
@@ -224,23 +277,19 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!isAudioEnabled) {
-        initializeAudio().then(success => {
-          if (success) {
-            console.log('Audio inicializado correctamente')
-          }
-        })
+        initializeAudio()
       }
       // Remover listeners después de la primera interacción
       document.removeEventListener('click', handleFirstInteraction)
       document.removeEventListener('keydown', handleFirstInteraction)
       document.removeEventListener('touchstart', handleFirstInteraction)
     }
-    
+
     // Agregar listeners para diferentes tipos de interacción
     document.addEventListener('click', handleFirstInteraction)
-    document.addEventListener('keydown', handleFirstInteraction)  
+    document.addEventListener('keydown', handleFirstInteraction)
     document.addEventListener('touchstart', handleFirstInteraction)
-    
+
     return () => {
       document.removeEventListener('click', handleFirstInteraction)
       document.removeEventListener('keydown', handleFirstInteraction)
@@ -248,75 +297,51 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     }
   }, [initializeAudio, isAudioEnabled])
 
-  // Timer del juego con efectos visuales y sonoros mejorados
+  const questionOpen = gameState === 'playing' && !showIntro && !showAnswer
+
+  // Cuenta atrás de la pregunta
   useEffect(() => {
-    if (gameState !== 'playing' || showAnswer) return
+    if (!questionOpen) return
 
     const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          handleTimeUp()
-          return 0
-        }
-        
-        const newTime = prev - 1
-        
-        // Sonidos del temporizador - solo en momentos específicos para evitar spam
-        if (newTime === 10) {
-          // Un solo tick a los 10 segundos
-          playTick()
-        } else if (newTime <= 5 && newTime > 0) {
-          // Tick en los últimos 5 segundos
-          playTick()
-          // Añadir vibración en dispositivos móviles si está disponible
-          if ('vibrate' in navigator && newTime <= 3) {
-            navigator.vibrate(100)
-          }
-        }
-        
-        return newTime
-      })
+      setTimeLeft(prev => Math.max(0, prev - 1))
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [gameState, showAnswer, playTick])
+  }, [questionOpen, currentQuestionIndex])
 
-  // Función para mezclar array
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    const shuffled = [...array]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
-    return shuffled
-  }
+  // Avisos del reloj y cierre de la pregunta al llegar a cero
+  useEffect(() => {
+    if (!questionOpen) return
 
-  // Función para mezclar opciones de una pregunta
-  const shuffleQuestionOptions = (question: Question): ShuffledQuestion => {
-    const optionsWithIndex = question.options.map((option, index) => ({
-      option,
-      originalIndex: index
-    }))
-    
-    const shuffledOptionsWithIndex = shuffleArray(optionsWithIndex)
-    const shuffledOptions = shuffledOptionsWithIndex.map(item => item.option)
-    
-    // Encontrar el nuevo índice de la respuesta correcta
-    const correctAnswerIndex = shuffledOptionsWithIndex.findIndex(
-      item => item.originalIndex === question.correct_answer
-    )
-    
-    return {
-      ...question,
-      shuffledOptions,
-      correctAnswerIndex
+    if (timeLeft === 0) {
+      handleTimeUp()
+      return
     }
-  }
+
+    if (timeLeft === 10) {
+      // Un solo tick a los 10 segundos
+      playTick()
+    } else if (timeLeft <= 5) {
+      // Tick en los últimos 5 segundos
+      playTick(timeLeft <= 3)
+      // Añadir vibración en dispositivos móviles si está disponible
+      if ('vibrate' in navigator && timeLeft <= 3) {
+        navigator.vibrate(100)
+      }
+    }
+  }, [timeLeft, questionOpen])
+
+  // Música mientras se juega
+  useEffect(() => {
+    if (gameState === 'playing') startMusic('countdown')
+    else stopMusic()
+  }, [gameState, startMusic, stopMusic])
 
   const loadGames = async () => {
     try {
       const { data, error } = await gameHelpers.getAllGames()
-      
+
       if (error) {
         console.error('Error loading games:', error)
         return
@@ -328,71 +353,63 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     }
   }
 
-  const handleGameSelect = (game: Game) => {
-    setSelectedGame(game)
-    // Crear preguntas mezcladas con opciones mezcladas
-    if (game.questions) {
-      // Primero mezclar el orden de las preguntas
-      const shuffledGameQuestions = shuffleArray(game.questions)
-      // Luego mezclar las opciones de cada pregunta
-      const shuffled = shuffledGameQuestions.map(question => shuffleQuestionOptions(question))
-      setShuffledQuestions(shuffled)
-    }
-    setGameState('playing')
-    startGame()
-  }
-
-  const startGame = () => {
-    setCurrentQuestionIndex(0)
+  // Mostrar una pregunta: primero solo el enunciado y, tras una pausa, las respuestas y el reloj
+  const beginQuestion = (index: number, questions: ShuffledQuestion[]) => {
+    setCurrentQuestionIndex(index)
     setSelectedAnswer(null)
     setShowAnswer(false)
+    setShowIntro(true)
+    setTimeLeft(questions[index].time_limit)
+
+    later(() => {
+      setShowIntro(false)
+      setQuestionStartTime(Date.now())
+    }, INTRO_MS)
+  }
+
+  // Mezclar preguntas y opciones y empezar una partida
+  const startGame = (game: Game) => {
+    if (!game.questions?.length) return
+
+    // Primero mezclar el orden de las preguntas y luego las opciones de cada una
+    const shuffled = shuffleArray(game.questions).map(question => shuffleQuestionOptions(question))
+    setShuffledQuestions(shuffled)
     setAnswers([])
     setGameStartTime(Date.now())
     setQrResultsSaved(false) // Resetear bandera al iniciar un nuevo juego
-    
-    // Si no hay preguntas mezcladas y tenemos un juego seleccionado, crear las preguntas mezcladas
-    if (selectedGame?.questions && shuffledQuestions.length === 0) {
-      // Primero mezclar el orden de las preguntas
-      const shuffledGameQuestions = shuffleArray(selectedGame.questions)
-      // Luego mezclar las opciones de cada pregunta
-      const shuffled = shuffledGameQuestions.map(question => shuffleQuestionOptions(question))
-      setShuffledQuestions(shuffled)
-    }
-    
+    setGameState('playing')
+
     // Reproducir sonido de inicio de juego
     playGameStart()
-    
-    // Usar las preguntas mezcladas para establecer el tiempo
-    if (shuffledQuestions.length > 0 && shuffledQuestions[0]) {
-      setTimeLeft(shuffledQuestions[0].time_limit)
-      setQuestionStartTime(Date.now())
-    } else if (selectedGame?.questions && selectedGame.questions[0]) {
-      // Fallback en caso de que shuffledQuestions aún no esté listo
-      setTimeLeft(selectedGame.questions[0].time_limit)
-      setQuestionStartTime(Date.now())
-    }
+
+    beginQuestion(0, shuffled)
+  }
+
+  const handleGameSelect = (game: Game) => {
+    setSelectedGame(game)
+    startGame(game)
   }
 
   const handleAnswerSelect = (answerIndex: number) => {
-    if (showAnswer || selectedAnswer !== null) return
-    
+    if (!questionOpen || selectedAnswer !== null) return
+
     const currentShuffledQuestion = shuffledQuestions[currentQuestionIndex]
     if (!currentShuffledQuestion) return
 
     const timeToAnswer = Date.now() - questionStartTime
     const isCorrect = answerIndex === currentShuffledQuestion.correctAnswerIndex
-    const pointsEarned = calculatePoints(isCorrect, timeToAnswer)
+    const pointsEarned = calculatePoints(isCorrect, timeToAnswer, currentShuffledQuestion.time_limit)
 
     setSelectedAnswer(answerIndex)
     setShowAnswer(true)
-    
+
     // Reproducir sonido según si la respuesta es correcta o incorrecta
     if (isCorrect) {
       playCorrect()
     } else {
       playIncorrect()
     }
-    
+
     // Guardar respuesta
     setAnswers(prev => [...prev, {
       questionIndex: currentQuestionIndex,
@@ -402,20 +419,18 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
       pointsEarned
     }])
 
-    // Avanzar automáticamente a la siguiente pregunta después de 2 segundos
-    setTimeout(() => {
-      handleNextQuestion()
-    }, 2000)
+    // Avanzar automáticamente a la siguiente pregunta
+    later(handleNextQuestion, REVEAL_MS)
   }
 
   const handleTimeUp = () => {
     if (showAnswer || selectedAnswer !== null) return
-    
+
     const timeToAnswer = Date.now() - questionStartTime
-    
+
     // Reproducir sonido de tiempo agotado
     playTimeUp()
-    
+
     // Respuesta por tiempo agotado
     setAnswers(prev => [...prev, {
       questionIndex: currentQuestionIndex,
@@ -424,48 +439,31 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
       timeToAnswer,
       pointsEarned: 0
     }])
-    
+
     setShowAnswer(true)
 
-    // Avanzar automáticamente a la siguiente pregunta después de 2 segundos
-    setTimeout(() => {
-      handleNextQuestion()
-    }, 2000)
+    // Avanzar automáticamente a la siguiente pregunta
+    later(handleNextQuestion, REVEAL_MS)
   }
 
   const handleNextQuestion = () => {
     const nextIndex = currentQuestionIndex + 1
-    
+
     if (!shuffledQuestions || nextIndex >= shuffledQuestions.length) {
       // Juego terminado - reproducir sonido de fin de juego
       playGameEnd()
-      
+
       setGameState('results')
       return
     }
 
-    // Siguiente pregunta
-    setCurrentQuestionIndex(nextIndex)
-    setSelectedAnswer(null)
-    setShowAnswer(false)
-    setTimeLeft(shuffledQuestions[nextIndex].time_limit)
-    setQuestionStartTime(Date.now())
+    beginQuestion(nextIndex, shuffledQuestions)
   }
 
   const handlePlayAgain = () => {
-    // Resetear bandera de guardado para permitir guardar en el próximo juego
-    setQrResultsSaved(false)
-    
-    // Re-mezclar las preguntas y opciones para el nuevo juego
-    if (selectedGame?.questions) {
-      // Primero mezclar el orden de las preguntas
-      const shuffledGameQuestions = shuffleArray(selectedGame.questions)
-      // Luego mezclar las opciones de cada pregunta
-      const shuffled = shuffledGameQuestions.map(question => shuffleQuestionOptions(question))
-      setShuffledQuestions(shuffled)
+    if (selectedGame) {
+      startGame(selectedGame)
     }
-    setGameState('playing')
-    startGame()
   }
 
   const handleSelectNewGame = () => {
@@ -483,6 +481,36 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     setGameState('results')
   }
 
+  // Cabecera común: azul con la franja de la bandera
+  const renderHeader = (title: string, subtitle?: string) => (
+    <header className="bg-dominican-blue text-white shadow-md">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 max-w-4xl mx-auto">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm font-bold text-white/85 hover:text-white"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Salir
+        </button>
+        <div className="text-center min-w-0">
+          <p className="font-display text-lg leading-tight truncate">{title}</p>
+          {subtitle && <p className="text-xs font-semibold text-white/80">{subtitle}</p>}
+        </div>
+        <button
+          onClick={toggleMute}
+          className="p-1.5 rounded-full bg-white/15 hover:bg-white/25"
+          title={isMuted ? 'Activar sonido' : 'Silenciar'}
+          aria-label={isMuted ? 'Activar sonido' : 'Silenciar'}
+        >
+          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        </button>
+      </div>
+      {/* franja de la bandera */}
+      <div className="h-1 bg-white" />
+      <div className="h-1.5 bg-dominican-red" />
+    </header>
+  )
+
   // Mostrar selector de juegos
   if (gameState === 'select' && !isQRSession) {
     return (
@@ -498,75 +526,46 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   // Pantalla de confirmación para sesiones QR
   if (gameState === 'select' && isQRSession && selectedGame) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
-              >
-                <ArrowLeft className="w-6 h-6" />
-              </button>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {qrSessionTitle || 'Juego Individual'}
-              </h1>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+        {renderHeader(qrSessionTitle || 'Juego Individual')}
 
-        <div className="max-w-2xl mx-auto px-6 py-8">
-          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-            <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Play className="w-8 h-8 text-white" />
-            </div>
-            
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+        <main className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl mx-auto px-4 py-6">
+          <div className="w-full bg-white rounded-2xl shadow-xl border-t-8 border-dominican-red p-6 sm:p-8 text-center">
+            <h2 className="font-display text-3xl sm:text-4xl text-dominican-blue mb-2">
               {selectedGame.title}
             </h2>
-            
+
             {selectedGame.description && (
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 font-semibold mb-6">
                 {selectedGame.description}
               </p>
             )}
 
-            <div className="grid md:grid-cols-2 gap-4 mb-8">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-dominican-blue">
+            <div className="grid grid-cols-2 gap-3 my-6">
+              <div className="bg-arena p-4 rounded-2xl">
+                <div className="font-display text-4xl text-dominican-red">
                   {selectedGame.questions?.length || 0}
                 </div>
-                <p className="text-gray-600">Preguntas</p>
+                <p className="text-gray-600 font-bold text-sm">Preguntas</p>
               </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-dominican-blue">
+
+              <div className="bg-arena p-4 rounded-2xl">
+                <div className="font-display text-4xl text-dominican-red">
                   ~{Math.ceil((selectedGame.questions?.reduce((acc, q) => acc + q.time_limit, 0) || 0) / 60)}
                 </div>
-                <p className="text-gray-600">Minutos</p>
+                <p className="text-gray-600 font-bold text-sm">Minutos</p>
               </div>
             </div>
 
             <button
-              onClick={() => {
-                // Crear preguntas mezcladas para sesión QR
-                if (selectedGame?.questions) {
-                  // Primero mezclar el orden de las preguntas
-                  const shuffledGameQuestions = shuffleArray(selectedGame.questions)
-                  // Luego mezclar las opciones de cada pregunta
-                  const shuffled = shuffledGameQuestions.map(question => shuffleQuestionOptions(question))
-                  setShuffledQuestions(shuffled)
-                }
-                setGameState('playing')
-                startGame()
-              }}
-              className="btn-dominican-primary w-full"
+              onClick={() => startGame(selectedGame)}
+              className="w-full flex items-center justify-center gap-2 bg-dominican-red hover:bg-dominican-red-light text-white font-display text-2xl py-4 rounded-2xl shadow-[0_6px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_2px_0_#A50E1E]"
             >
-              <Play className="w-5 h-5 mr-2" />
-              Comenzar Juego
+              <Play className="w-6 h-6" />
+              ¡Arrancar!
             </button>
           </div>
-        </div>
+        </main>
       </div>
     )
   }
@@ -574,216 +573,133 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   // Pantalla de juego
   if (gameState === 'playing' && selectedGame?.questions && shuffledQuestions.length > 0) {
     const currentShuffledQuestion = shuffledQuestions[currentQuestionIndex]
-    const progress = ((currentQuestionIndex + 1) / shuffledQuestions.length) * 100
+    const totalPoints = answers.reduce((total, answer) => total + answer.pointsEarned, 0)
+    const lastAnswer = answers[answers.length - 1]
+    const answeredCorrectly = selectedAnswer === currentShuffledQuestion.correctAnswerIndex
 
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header con progreso */}
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={onBack}
-                  className="text-dominican-blue hover:text-dominican-blue-light"
-                >
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <h1 className="text-xl font-bold text-gray-800">
-                  {selectedGame.title}
-                </h1>
-              </div>
-              
-              <div className="flex items-center gap-6">
-                {/* Temporizador circular mejorado */}
-                <div className="relative flex items-center justify-center">
-                  <svg
-                    className={`w-20 h-20 ${
-                      timeLeft <= 5 
-                        ? 'timer-critical' 
-                        : timeLeft <= 10 
-                        ? 'timer-warning' 
-                        : 'timer-normal transform -rotate-90'
-                    }`}
-                    viewBox="0 0 64 64"
-                  >
-                    {/* Círculo de fondo */}
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      fill="none"
-                      stroke="#f3f4f6"
-                      strokeWidth="3"
-                    />
-                    {/* Círculo de fondo sutil */}
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      fill="none"
-                      stroke="#e5e7eb"
-                      strokeWidth="6"
-                      opacity="0.3"
-                    />
-                    {/* Círculo de progreso principal */}
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      fill="none"
-                      stroke={
-                        timeLeft <= 5 
-                          ? '#dc2626' 
-                          : timeLeft <= 10 
-                          ? '#f59e0b' 
-                          : '#10b981'
-                      }
-                      strokeWidth="6"
-                      strokeDasharray={`${(timeLeft / currentShuffledQuestion.time_limit) * 175.929} 175.929`}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-linear"
-                    />
-                    {/* Círculo de brillo interior */}
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      fill="none"
-                      stroke={
-                        timeLeft <= 5 
-                          ? '#fca5a5' 
-                          : timeLeft <= 10 
-                          ? '#fbbf24' 
-                          : '#6ee7b7'
-                      }
-                      strokeWidth="2"
-                      strokeDasharray={`${(timeLeft / currentShuffledQuestion.time_limit) * 175.929} 175.929`}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-linear"
-                      opacity="0.6"
-                    />
-                  </svg>
-                  {/* Número del temporizador con efectos mejorados */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span 
-                      className={`font-bold text-2xl transition-all duration-300 ${
-                        timeLeft <= 5 
-                          ? 'text-red-600 timer-number-critical' 
-                          : timeLeft <= 10 
-                          ? 'text-amber-600 timer-number-warning' 
-                          : 'text-green-600 timer-number-normal'
-                      }`}
-                    >
-                      {timeLeft}
-                    </span>
-                  </div>
-                  
-                  {/* Indicador de urgencia adicional */}
-                  {timeLeft <= 3 && (
-                    <div className="absolute -inset-2 rounded-full border-2 border-red-500 animate-ping opacity-30"></div>
-                  )}
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  <div className="font-semibold">
-                    Pregunta {currentQuestionIndex + 1} de {shuffledQuestions.length}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {answers.reduce((total, answer) => total + answer.pointsEarned, 0)} puntos
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Barra de progreso */}
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-dominican-blue h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+        {renderHeader(
+          selectedGame.title,
+          `Pregunta ${currentQuestionIndex + 1} de ${shuffledQuestions.length} · ${totalPoints} puntos`
+        )}
 
-        {/* Pregunta */}
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <div className="question-card">
-            {currentShuffledQuestion.image_url && (
-              <div className="mb-6">
+        <main className="flex-1 flex flex-col w-full max-w-4xl mx-auto px-4 pt-4 pb-6">
+          {showIntro ? (
+            // Primero solo la pregunta
+            <div className="flex-1 flex flex-col items-center justify-center gap-7 text-center">
+              <span className="bg-dominican-blue text-white rounded-full px-5 py-2 font-display text-lg">
+                Pregunta {currentQuestionIndex + 1} de {shuffledQuestions.length}
+              </span>
+              <h2
+                key={currentQuestionIndex}
+                className="bg-white text-dominican-blue-dark rounded-2xl shadow-xl border-t-8 border-dominican-red px-6 py-8 text-2xl sm:text-4xl font-black w-full animate-pop-in"
+              >
+                {currentShuffledQuestion.text}
+              </h2>
+              <div className="w-full max-w-xl h-3 bg-dominican-blue/15 rounded-full overflow-hidden">
+                <div
+                  key={currentQuestionIndex}
+                  className="h-full bg-dominican-red rounded-full animate-vaciar-barra"
+                  style={{ animationDuration: `${INTRO_MS}ms` }}
+                />
+              </div>
+              <p className="font-display text-2xl text-dominican-red">¡Ponte pila!</p>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col gap-4">
+              {showAnswer ? (
+                <div
+                  className={`rounded-2xl px-5 py-4 text-center text-white shadow-xl animate-pop-in ${
+                    selectedAnswer === null ? 'bg-slate-600' : answeredCorrectly ? 'bg-palma' : 'bg-dominican-red'
+                  }`}
+                >
+                  <p className="font-display text-3xl sm:text-4xl">
+                    {selectedAnswer === null ? '¡Se te fue la guagua!' : answeredCorrectly ? '¡La botaste!' : '¡Te ponchaste!'}
+                  </p>
+                  <p className="font-bold text-white/95">
+                    {selectedAnswer === null
+                      ? 'No respondiste a tiempo'
+                      : answeredCorrectly
+                        ? `Correcto · +${lastAnswer?.pointsEarned ?? 0} puntos`
+                        : 'Incorrecto · 0 puntos'}
+                  </p>
+                  <p className="text-sm font-semibold text-white/85">
+                    {currentQuestionIndex + 1 < shuffledQuestions.length
+                      ? 'Viene la siguiente pregunta…'
+                      : 'Calculando resultados…'}
+                  </p>
+                </div>
+              ) : (
+                <h2 className="bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center">
+                  {currentShuffledQuestion.text}
+                </h2>
+              )}
+
+              {currentShuffledQuestion.image_url && !showAnswer && (
                 <img
                   src={currentShuffledQuestion.image_url}
                   alt="Imagen de la pregunta"
-                  className="max-w-full h-64 object-cover rounded-lg mx-auto"
+                  className="max-h-56 mx-auto rounded-2xl shadow-lg"
                 />
-              </div>
-            )}
-            
-            <h2 className="text-2xl font-bold text-gray-800 mb-8 text-center">
-              {currentShuffledQuestion.text}
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-4">
-              {currentShuffledQuestion.shuffledOptions.map((option, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleAnswerSelect(index)}
-                  disabled={showAnswer}
-                  className={`answer-option ${
-                    showAnswer
-                      ? selectedAnswer === index && selectedAnswer === currentShuffledQuestion.correctAnswerIndex
-                        ? 'answer-option-correct'  // Solo mostrar verde si seleccionó la correcta
-                        : selectedAnswer === index
-                        ? 'answer-option-incorrect' // Solo mostrar rojo en la que seleccionó
-                        : ''
-                      : selectedAnswer === index
-                      ? 'answer-option-selected'
-                      : ''
+              )}
+
+              {showAnswer && (
+                <h2 className="text-center text-lg sm:text-2xl font-black">{currentShuffledQuestion.text}</h2>
+              )}
+
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg ${
+                    timeLeft <= 5 && !showAnswer ? 'bg-dominican-red animate-pulse' : 'bg-dominican-blue'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span>{option}</span>
-                    {showAnswer && selectedAnswer === index && selectedAnswer === currentShuffledQuestion.correctAnswerIndex && (
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                    )}
-                    {showAnswer && selectedAnswer === index && selectedAnswer !== currentShuffledQuestion.correctAnswerIndex && (
-                      <X className="w-5 h-5 text-red-600" />
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {showAnswer && (
-              <div className="mt-8 text-center">
-                <div className="mb-4">
-                  <div className={`text-2xl font-bold mb-2 ${
-                    selectedAnswer === currentShuffledQuestion.correctAnswerIndex ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {selectedAnswer === currentShuffledQuestion.correctAnswerIndex 
-                      ? '¡Correcto!' 
-                      : selectedAnswer === -1 
-                      ? '¡Tiempo Agotado!' 
-                      : '¡Incorrecto!'
-                    }
-                  </div>
-                  
-                  {answers[answers.length - 1] && (
-                    <div className="text-lg text-dominican-blue font-semibold">
-                      +{answers[answers.length - 1].pointsEarned} puntos
-                    </div>
-                  )}
+                  <span className="font-display text-3xl sm:text-4xl leading-none tabular-nums">{timeLeft}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide">seg</span>
                 </div>
-                
-                <div className="text-sm text-gray-500">
-                  {currentQuestionIndex + 1 < shuffledQuestions.length 
-                    ? 'Siguiente pregunta en unos segundos...' 
-                    : 'Calculando resultados...'}
+                <div className="flex-1 h-2.5 bg-dominican-blue/15 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
+                      timeLeft <= 5 ? 'bg-dominican-red' : 'bg-dominican-blue'
+                    }`}
+                    style={{ width: `${(timeLeft / currentShuffledQuestion.time_limit) * 100}%` }}
+                  />
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+
+              <div className="grid grid-cols-2 auto-rows-fr gap-3 flex-1 max-h-[30rem] mt-auto">
+                {currentShuffledQuestion.shuffledOptions.slice(0, 4).map((option, index) => {
+                  const isSelected = selectedAnswer === index
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleAnswerSelect(index)}
+                      disabled={showAnswer}
+                      className={`${ANSWER_STYLES[index].bg} tablita relative flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all active:scale-95 ${
+                        !showAnswer
+                          ? 'hover:brightness-110 hover:-translate-y-0.5'
+                          : isSelected
+                            ? 'ring-4 ring-dominican-blue'
+                            : 'opacity-60 saturate-50'
+                      }`}
+                    >
+                      <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-12 h-12 sm:w-14 sm:h-14" />
+                      <span className="break-words">{option}</span>
+                      {/* Solo se marca la respuesta elegida: la correcta no se revela */}
+                      {showAnswer && isSelected && (
+                        <span className={`absolute top-2 right-2 rounded-full p-1 bg-white ${answeredCorrectly ? 'text-palma' : 'text-dominican-red'}`}>
+                          {answeredCorrectly
+                            ? <Check className="w-5 h-5" strokeWidth={4} />
+                            : <X className="w-5 h-5" strokeWidth={4} />}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     )
   }
@@ -805,164 +721,139 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
   // Pantalla de resultados
   if (gameState === 'results' && selectedGame) {
     const results = calculateResults()
+    const verdict =
+      results.accuracy >= 80 ? { title: '¡Tú sí sabes!', color: 'bg-palma' }
+      : results.accuracy >= 60 ? { title: '¡Vas bien!', color: 'bg-ambar' }
+      : { title: '¡A practicar!', color: 'bg-dominican-red' }
 
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
-              >
-                <ArrowLeft className="w-6 h-6" />
-              </button>
-              <h1 className="text-2xl font-bold text-gray-800">Resultados</h1>
+      <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+        {renderHeader('Resultados', selectedGame.title)}
+
+        <main className="flex-1 w-full max-w-4xl mx-auto px-4 pt-4 pb-6 space-y-4">
+          <div className={`${verdict.color} rounded-2xl px-5 py-5 text-center text-white shadow-xl animate-pop-in`}>
+            <p className="font-display text-4xl sm:text-5xl">{verdict.title}</p>
+            <p className="font-bold text-white/95">
+              Acertaste {results.correctAnswers} de {results.totalQuestions} preguntas
+            </p>
+          </div>
+
+          {/* Estadísticas principales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white rounded-2xl shadow-lg p-4 text-center">
+              <div className="font-display text-3xl text-dominican-red tabular-nums">{results.totalPoints}</div>
+              <p className="text-gray-600 font-bold text-sm">Puntos</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-4 text-center">
+              <div className="font-display text-3xl text-palma tabular-nums">{results.accuracy}%</div>
+              <p className="text-gray-600 font-bold text-sm">Precisión</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-4 text-center">
+              <div className="font-display text-3xl text-larimar tabular-nums">
+                {results.correctAnswers}/{results.totalQuestions}
+              </div>
+              <p className="text-gray-600 font-bold text-sm">Correctas</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-4 text-center">
+              <div className="font-display text-3xl text-ambar tabular-nums">
+                {Math.floor(results.timeSpent / 60)}:{(results.timeSpent % 60).toString().padStart(2, '0')}
+              </div>
+              <p className="text-gray-600 font-bold text-sm">Tiempo</p>
             </div>
           </div>
-        </div>
 
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="text-center mb-8">
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                results.accuracy >= 80 ? 'bg-green-100' :
-                results.accuracy >= 60 ? 'bg-yellow-100' : 'bg-red-100'
-              }`}>
-                <span className={`text-3xl ${
-                  results.accuracy >= 80 ? 'text-green-600' :
-                  results.accuracy >= 60 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
-                  {results.accuracy >= 80 ? '🎉' : results.accuracy >= 60 ? '👍' : '😅'}
-                </span>
-              </div>
-              
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                ¡Juego Completado!
-              </h2>
-              
-              <p className="text-gray-600">
-                {selectedGame.title}
-              </p>
-            </div>
+          {/* Revisión de respuestas */}
+          <div className="bg-white rounded-2xl shadow-lg p-4">
+            <h3 className="font-display text-xl text-dominican-blue mb-3">Revisión de respuestas</h3>
+            <div className="space-y-2">
+              {answers.map((answer, index) => {
+                const question = shuffledQuestions[answer.questionIndex]
+                return (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-arena rounded-xl">
+                    <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white ${
+                      answer.isCorrect ? 'bg-palma' : 'bg-dominican-red'
+                    }`}>
+                      {answer.isCorrect ? <Check className="w-5 h-5" strokeWidth={3} /> : <X className="w-5 h-5" strokeWidth={3} />}
+                    </div>
 
-            {/* Estadísticas principales */}
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{results.totalPoints}</div>
-                <p className="text-blue-800 font-semibold">Puntos</p>
-              </div>
-              
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{results.accuracy}%</div>
-                <p className="text-green-800 font-semibold">Precisión</p>
-              </div>
-              
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {results.correctAnswers}/{results.totalQuestions}
-                </div>
-                <p className="text-purple-800 font-semibold">Correctas</p>
-              </div>
-              
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">
-                  {Math.floor(results.timeSpent / 60)}:{(results.timeSpent % 60).toString().padStart(2, '0')}
-                </div>
-                <p className="text-orange-800 font-semibold">Tiempo</p>
-              </div>
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm">
+                        {question?.text}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {answer.selectedAnswer === -1
+                          ? 'Sin respuesta (tiempo agotado)'
+                          : `Tu respuesta: ${shuffledQuestions[answer.questionIndex]?.shuffledOptions[answer.selectedAnswer] || 'N/A'}`
+                        }
+                      </p>
+                    </div>
 
-            {/* Revisión de respuestas */}
-            <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Revisión de Respuestas</h3>
-              <div className="space-y-3">
-                {answers.map((answer, index) => {
-                  const question = shuffledQuestions[answer.questionIndex]
-                  return (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        answer.isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                      }`}>
-                        {answer.isCorrect ? <CheckCircle className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                    <div className="text-right shrink-0">
+                      <div className="font-display text-lg text-dominican-blue tabular-nums">
+                        +{answer.pointsEarned}
                       </div>
-                      
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-800 text-sm">
-                          {question?.text}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {answer.selectedAnswer === -1 
-                            ? 'Sin respuesta (tiempo agotado)'
-                            : `Tu respuesta: ${shuffledQuestions[answer.questionIndex]?.shuffledOptions[answer.selectedAnswer] || 'N/A'}`
-                          }
-                        </p>
-                      </div>
-                      
-                      <div className="text-right">
-                        <div className="font-bold text-sm text-dominican-blue">
-                          +{answer.pointsEarned}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {(answer.timeToAnswer / 1000).toFixed(1)}s
-                        </div>
+                      <div className="text-xs text-gray-500">
+                        {(answer.timeToAnswer / 1000).toFixed(1)}s
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Acciones */}
-            <div className="flex flex-wrap gap-4">
-              {!isQRSession && (
-                <button
-                  onClick={handlePlayAgain}
-                  className="btn-dominican-primary flex-1 min-w-0"
-                >
-                  <RotateCcw className="w-5 h-5 mr-2" />
-                  Jugar de Nuevo
-                </button>
-              )}
-              
-              {isQRSession && qrSessionId && (
-                <button
-                  onClick={handleShowLeaderboard}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex-1 min-w-0"
-                >
-                  <Trophy className="w-5 h-5 mr-2 inline" />
-                  Ver Leaderboard
-                </button>
-              )}
-              
-              {!isQRSession && (
-                <button
-                  onClick={handleSelectNewGame}
-                  className="btn-dominican-outline flex-1 min-w-0"
-                >
-                  Elegir Otro Juego
-                </button>
-              )}
-              
-              <button
-                onClick={onBack}
-                className="btn-dominican-outline flex-1 min-w-0"
-              >
-                Salir
-              </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </div>
+
+          {/* Acciones */}
+          <div className="flex flex-wrap gap-3">
+            {!isQRSession && (
+              <button
+                onClick={handlePlayAgain}
+                className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 bg-dominican-red hover:bg-dominican-red-light text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_1px_0_#A50E1E]"
+              >
+                <RotateCcw className="w-5 h-5" />
+                Jugar de nuevo
+              </button>
+            )}
+
+            {isQRSession && qrSessionId && (
+              <button
+                onClick={handleShowLeaderboard}
+                className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 bg-ambar hover:brightness-110 text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#9A6200] transition-all active:translate-y-1 active:shadow-[0_1px_0_#9A6200]"
+              >
+                <Trophy className="w-5 h-5" />
+                Tabla de posiciones
+              </button>
+            )}
+
+            {!isQRSession && (
+              <button
+                onClick={handleSelectNewGame}
+                className="flex-1 min-w-[10rem] bg-white text-dominican-blue font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#cbd5e1] transition-all active:translate-y-1 active:shadow-[0_1px_0_#cbd5e1]"
+              >
+                Elegir otro juego
+              </button>
+            )}
+
+            <button
+              onClick={onBack}
+              className="flex-1 min-w-[10rem] bg-dominican-blue hover:bg-dominican-blue-light text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#001A3A] transition-all active:translate-y-1 active:shadow-[0_1px_0_#001A3A]"
+            >
+              Salir
+            </button>
+          </div>
+        </main>
       </div>
     )
   }
 
   // Loading state
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen fondo-caribe flex items-center justify-center">
       <div className="text-center">
         <div className="loading-spinner mx-auto mb-4"></div>
-        <p className="text-gray-600">Cargando juego...</p>
+        <p className="font-bold text-dominican-blue">Cargando juego...</p>
       </div>
     </div>
   )
