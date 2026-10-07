@@ -1,4 +1,4 @@
-# Compila la app con Vite y la sirve como sitio estático con nginx (puerto 80).
+# Compila la app con Vite y la sirve como sitio estático con nginx (puertos 80 y 3000).
 FROM node:20-alpine AS build
 WORKDIR /app
 
@@ -15,5 +15,6 @@ RUN node --input-type=module -e "import { loadEnv } from 'vite'; const env = loa
 RUN npm run build
 
 FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 80 3000
