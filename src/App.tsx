@@ -63,7 +63,8 @@ const AppContent: React.FC = () => {
     setCurrentPlayer(null)
   }
 
-  const handleJoinRoom = (room: Room, player: Player) => {
+  // player es null cuando quien creó la sala solo dirige la partida y no juega
+  const handleJoinRoom = (room: Room, player: Player | null) => {
     setCurrentRoom(room)
     setCurrentPlayer(player)
     setCurrentView('game-room')
@@ -117,7 +118,7 @@ const AppContent: React.FC = () => {
         )
 
       case 'game-room':
-        if (!currentRoom || !currentPlayer) {
+        if (!currentRoom) {
           return <WelcomeScreen onNavigate={handleNavigate} />
         }
         return (

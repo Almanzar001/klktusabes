@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Presentation, SkipForward, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
 import { roomHelpers, realtimeHelpers, sessionHelpers } from '../insforge'
 import { Room, Player, Game } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
@@ -8,7 +8,8 @@ import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
 
 interface MultiplayerRoomProps {
   room: Room
-  player: Player
+  // null cuando quien creó la sala solo dirige la partida (por ejemplo, un profesor)
+  player: Player | null
   onBack: () => void
 }
 
@@ -36,7 +37,7 @@ const progressOf = (room: Pick<Room, 'status' | 'current_question_index'>) => {
   return (room.current_question_index ?? 0) * 10 + STATUS_STEP[room.status]
 }
 
-const Scoreboard: React.FC<{ ranked: Player[]; meId: string; limit: number }> = ({ ranked, meId, limit }) => {
+const Scoreboard: React.FC<{ ranked: Player[]; meId: string | null; limit: number }> = ({ ranked, meId, limit }) => {
   const myPosition = ranked.findIndex(p => p.id === meId)
   const visible = ranked.slice(0, limit)
 
@@ -87,6 +88,10 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   } = useGameSounds()
 
   const roomId = initialRoom.id
+  // Sin jugador propio se está dirigiendo la partida: se controla el ritmo pero no se responde
+  const isHost = player ? player.is_host : true
+  const playerId = player?.id ?? null
+  const minPlayers = player ? 2 : 1
 
   // Estado que viene de la base de datos
   const [room, setRoom] = useState<Room>(initialRoom)
@@ -119,14 +124,14 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     : 'question'
 
   const timeLeft = Math.max(0, Math.ceil((startAt + limitMs - serverNow) / 1000))
-  const mySavedAnswer = answers.find(a => a.player_id === player.id)
+  const mySavedAnswer = playerId ? answers.find(a => a.player_id === playerId) : undefined
   const selectedAnswer = myAnswer && myAnswer.questionId === questionId ? myAnswer.answer : mySavedAnswer?.answer ?? null
 
   const ranked = useMemo(
     () => [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.joined_at.localeCompare(b.joined_at)),
     [players]
   )
-  const myPosition = ranked.findIndex(p => p.id === player.id)
+  const myPosition = ranked.findIndex(p => p.id === playerId)
   const myScore = ranked[myPosition]?.score ?? 0
 
   // --- Carga de datos ---
@@ -259,13 +264,13 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     const everyoneAnswered = players.length > 0 && answers.length >= players.length
     // El anfitrión cierra la pregunta; los demás lo hacen poco después por si su
     // dispositivo está en segundo plano o sin conexión
-    const graceMs = player.is_host ? 300 : 2500
+    const graceMs = isHost ? 300 : 2500
     const timeIsUp = serverNow >= startAt + limitMs + graceMs
 
-    if ((player.is_host && everyoneAnswered) || timeIsUp) {
+    if ((isHost && everyoneAnswered) || timeIsUp) {
       requestReveal()
     }
-  }, [phase, question, players.length, answers.length, serverNow, startAt, limitMs, player.is_host, requestReveal])
+  }, [phase, question, players.length, answers.length, serverNow, startAt, limitMs, isHost, requestReveal])
 
   // --- Sonidos ---
 
@@ -316,11 +321,11 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   // La música suena solo en el dispositivo del anfitrión, para que no se pisen
   // varios dispositivos cuando todos juegan en el mismo lugar
   useEffect(() => {
-    if (!player.is_host) return
+    if (!isHost) return
     if (phase === 'lobby') startMusic('lobby')
     else if (phase === 'question') startMusic('countdown')
     else stopMusic()
-  }, [phase, player.is_host, startMusic, stopMusic])
+  }, [phase, isHost, startMusic, stopMusic])
 
   useEffect(() => stopMusic, [stopMusic])
 
@@ -346,7 +351,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   }
 
   const handleAnswer = async (answerIndex: number) => {
-    if (phase !== 'question' || selectedAnswer !== null || !sessionId || !question) return
+    if (!player || phase !== 'question' || selectedAnswer !== null || !sessionId || !question) return
 
     setError(null)
     setMyAnswer({ questionId: question.id, answer: answerIndex })
@@ -421,6 +426,13 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         </p>
       )}
 
+      {!player && (
+        <p className="flex items-center gap-2 bg-dominican-blue text-white rounded-full px-4 py-1.5 text-sm font-bold">
+          <Presentation className="w-4 h-4" />
+          Tú diriges la partida
+        </p>
+      )}
+
       <div className="w-full">
         <p className="flex items-center justify-center gap-2 font-bold text-dominican-blue mb-4">
           <Users className="w-5 h-5" />
@@ -431,7 +443,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
             <div
               key={p.id}
               className={`flex items-center gap-2 rounded-full pl-1.5 pr-4 py-1.5 font-bold shadow animate-pop-in ${
-                p.id === player.id ? 'bg-dominican-blue text-white' : 'bg-white'
+                p.id === playerId ? 'bg-dominican-blue text-white' : 'bg-white'
               }`}
             >
               <PlayerAvatar avatar={p.avatar} size="sm" />
@@ -443,18 +455,20 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
       </div>
 
       <div className="mt-auto w-full max-w-md text-center">
-        {player.is_host ? (
+        {isHost ? (
           <>
             <button
               onClick={handleStart}
-              disabled={busy || players.length < 2 || !game}
+              disabled={busy || players.length < minPlayers || !game}
               className="w-full flex items-center justify-center gap-2 bg-dominican-red hover:bg-dominican-red-light text-white font-display text-2xl py-4 rounded-2xl shadow-[0_6px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_2px_0_#A50E1E] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-6 h-6" />
               {busy ? 'Arrancando…' : '¡Arrancar el juego!'}
             </button>
-            {players.length < 2 && (
-              <p className="text-gray-600 font-semibold text-sm mt-4">Necesitas al menos 2 jugadores para arrancar</p>
+            {players.length < minPlayers && (
+              <p className="text-gray-600 font-semibold text-sm mt-4">
+                {player ? 'Necesitas al menos 2 jugadores para arrancar' : 'Espera a que entre al menos un jugador'}
+              </p>
             )}
           </>
         ) : (
@@ -513,6 +527,15 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
             <span className="block font-sans text-sm font-semibold text-gray-600">Aguanta, faltan los demás…</span>
           </p>
         )}
+        {!player && (
+          <button
+            onClick={requestReveal}
+            className="flex items-center gap-2 bg-white text-dominican-blue font-bold text-sm px-4 py-2 rounded-full shadow hover:bg-arena"
+          >
+            <SkipForward className="w-4 h-4" />
+            Cerrar pregunta
+          </button>
+        )}
         <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl bg-white shadow-lg flex flex-col items-center justify-center text-dominican-blue">
           <span className="font-display text-3xl sm:text-4xl leading-none tabular-nums">{answers.length}</span>
           <span className="text-[10px] font-bold uppercase tracking-wide">resp.</span>
@@ -533,10 +556,12 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           <button
             key={index}
             onClick={() => handleAnswer(index)}
-            disabled={selectedAnswer !== null}
-            className={`${ANSWER_STYLES[index].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all active:scale-95 ${
-              selectedAnswer === null
-                ? 'hover:brightness-110 hover:-translate-y-0.5'
+            disabled={!player || selectedAnswer !== null}
+            className={`${ANSWER_STYLES[index].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all ${
+              !player
+                ? ''
+                : selectedAnswer === null
+                ? 'hover:brightness-110 hover:-translate-y-0.5 active:scale-95'
                 : selectedAnswer === index
                   ? 'ring-4 ring-dominican-blue'
                   : 'opacity-60 saturate-50'
@@ -554,9 +579,20 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     const counts = [0, 1, 2, 3].map(index => answers.filter(a => a.answer === index).length)
     const maxCount = Math.max(1, ...counts)
     const isLastQuestion = questionIndex >= questions.length - 1
+    const correctCount = question ? counts[question.correct_answer] ?? 0 : 0
 
     return (
       <div className="flex-1 flex flex-col gap-4">
+        {!player ? (
+          <div className="rounded-2xl px-5 py-4 text-center text-white shadow-xl animate-pop-in bg-dominican-blue">
+            <p className="font-display text-3xl sm:text-4xl">
+              {correctCount} de {players.length} {correctCount === 1 ? 'acertó' : 'acertaron'}
+            </p>
+            <p className="font-bold text-white/95">
+              Respuesta correcta: {question?.options[question.correct_answer]}
+            </p>
+          </div>
+        ) : (
         <div
           className={`rounded-2xl px-5 py-4 text-center text-white shadow-xl animate-pop-in ${
             !mySavedAnswer ? 'bg-slate-600' : mySavedAnswer.is_correct ? 'bg-palma' : 'bg-dominican-red'
@@ -576,6 +612,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
             Vas en el puesto {myPosition + 1} con {myScore} puntos
           </p>
         </div>
+        )}
 
         <h2 className="text-center text-lg sm:text-2xl font-black text-dominican-blue-dark">{question?.text}</h2>
 
@@ -618,9 +655,9 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           })}
         </div>
 
-        <Scoreboard ranked={ranked} meId={player.id} limit={5} />
+        <Scoreboard ranked={ranked} meId={playerId} limit={5} />
 
-        {player.is_host ? (
+        {isHost ? (
           <button
             onClick={handleNext}
             disabled={busy}
@@ -672,13 +709,15 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
           })}
         </div>
 
-        <p className="bg-dominican-blue text-white rounded-full px-5 py-2 font-bold">
-          Quedaste en el puesto {myPosition + 1} con {myScore} puntos
-        </p>
+        {player && (
+          <p className="bg-dominican-blue text-white rounded-full px-5 py-2 font-bold">
+            Quedaste en el puesto {myPosition + 1} con {myScore} puntos
+          </p>
+        )}
 
         {ranked.length > 3 && (
           <div className="w-full max-w-md">
-            <Scoreboard ranked={ranked} meId={player.id} limit={10} />
+            <Scoreboard ranked={ranked} meId={playerId} limit={10} />
           </div>
         )}
 

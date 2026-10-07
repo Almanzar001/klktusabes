@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Users, Play, ArrowLeft } from 'lucide-react'
+import { Users, Play, ArrowLeft, Gamepad2, Presentation } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { roomHelpers, gameHelpers } from '../insforge'
 import { Game, Room, Player, generateRoomCode, AVAILABLE_AVATARS } from '../types'
@@ -8,7 +8,8 @@ import PlayerAvatar from './PlayerAvatar'
 
 interface CreateRoomProps {
   onBack: () => void
-  onJoinRoom: (room: Room, player: Player) => void
+  // player es null cuando quien crea la sala solo dirige la partida
+  onJoinRoom: (room: Room, player: Player | null) => void
 }
 
 const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
@@ -24,6 +25,8 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
   const [playerName, setPlayerName] = useState(userProfile?.full_name || '')
   const [selectedAvatar, setSelectedAvatar] = useState(AVAILABLE_AVATARS[0])
   const [maxPlayers, setMaxPlayers] = useState(10)
+  // Quien crea la sala puede jugar o solo dirigir la partida (por ejemplo, un profesor)
+  const [hostPlays, setHostPlays] = useState(true)
   
   // Estados de la UI
   const [loading, setLoading] = useState(false)
@@ -48,7 +51,7 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
   }
 
   const handleCreateRoom = async () => {
-    if (!user || !selectedGame || !roomName.trim() || !playerName.trim()) return
+    if (!user || !selectedGame || !roomName.trim() || (hostPlays && !playerName.trim())) return
 
     try {
       setLoading(true)
@@ -71,18 +74,24 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
         return
       }
 
-      // Unirse como host
-      const { data: playerData, error: playerError } = await roomHelpers.joinRoom(
-        roomData.id,
-        playerName.trim(),
-        selectedAvatar,
-        true // es host
-      )
+      // Unirse como host, salvo que solo vaya a dirigir la partida
+      let hostPlayer: Player | null = null
 
-      if (playerError) {
-        setError('Error al unirse a la sala')
-        console.error('Player error:', playerError)
-        return
+      if (hostPlays) {
+        const { data: playerData, error: playerError } = await roomHelpers.joinRoom(
+          roomData.id,
+          playerName.trim(),
+          selectedAvatar,
+          true // es host
+        )
+
+        if (playerError) {
+          setError('Error al unirse a la sala')
+          console.error('Player error:', playerError)
+          return
+        }
+
+        hostPlayer = playerData
       }
 
       // Dejar el juego elegido asociado a la sala para que todos los jugadores lo carguen
@@ -98,7 +107,7 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
       }
 
       // La sala de espera y la partida continúan en la sala de juego
-      onJoinRoom(roomData, playerData)
+      onJoinRoom(roomData, hostPlayer)
     } catch (err) {
       setError('Error inesperado al crear la sala')
       console.error('Error:', err)
@@ -216,42 +225,92 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
                 />
               </div>
 
-              {/* Nombre del jugador */}
+              {/* Participación de quien crea la sala */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tu Nombre *
+                  ¿Cómo vas a participar?
                 </label>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-dominican-blue"
-                  placeholder="Como te verán otros jugadores"
-                  maxLength={30}
-                />
-              </div>
-
-              {/* Selección de avatar */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tu Avatar
-                </label>
-                <div className="grid grid-cols-6 gap-3">
-                  {AVAILABLE_AVATARS.map((avatar) => (
-                    <button
-                      key={avatar}
-                      onClick={() => setSelectedAvatar(avatar)}
-                      className={`p-2 rounded-lg border-2 transition-all hover:scale-105 ${
-                        selectedAvatar === avatar
-                          ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <PlayerAvatar avatar={avatar} size="md" />
-                    </button>
-                  ))}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setHostPlays(true)}
+                    aria-pressed={hostPlays}
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${
+                      hostPlays
+                        ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-bold text-gray-800">
+                      <Gamepad2 className="w-5 h-5 text-dominican-blue" />
+                      Voy a jugar
+                    </span>
+                    <span className="block text-sm text-gray-600 mt-1">
+                      Respondes las preguntas y sales en la tabla de posiciones.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHostPlays(false)}
+                    aria-pressed={!hostPlays}
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${
+                      !hostPlays
+                        ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-bold text-gray-800">
+                      <Presentation className="w-5 h-5 text-dominican-blue" />
+                      Solo dirijo la partida
+                    </span>
+                    <span className="block text-sm text-gray-600 mt-1">
+                      Para profesores o presentadores: muestras las preguntas y controlas el ritmo, sin responder.
+                    </span>
+                  </button>
                 </div>
               </div>
+
+              {hostPlays && (
+                <>
+                  {/* Nombre del jugador */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tu Nombre *
+                    </label>
+                    <input
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-dominican-blue"
+                      placeholder="Como te verán otros jugadores"
+                      maxLength={30}
+                    />
+                  </div>
+
+                  {/* Selección de avatar */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tu Avatar
+                    </label>
+                    <div className="grid grid-cols-6 gap-3">
+                      {AVAILABLE_AVATARS.map((avatar) => (
+                        <button
+                          key={avatar}
+                          onClick={() => setSelectedAvatar(avatar)}
+                          className={`p-2 rounded-lg border-2 transition-all hover:scale-105 ${
+                            selectedAvatar === avatar
+                              ? 'border-dominican-blue bg-blue-50 ring-2 ring-dominican-blue ring-opacity-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <PlayerAvatar avatar={avatar} size="md" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                </>
+              )}
 
               {/* Número máximo de jugadores */}
               <div>
@@ -272,7 +331,7 @@ const CreateRoom: React.FC<CreateRoomProps> = ({ onBack, onJoinRoom }) => {
 
             <button
               onClick={handleCreateRoom}
-              disabled={!roomName.trim() || !playerName.trim() || loading}
+              disabled={!roomName.trim() || (hostPlays && !playerName.trim()) || loading}
               className="w-full mt-8 btn-dominican-primary disabled:opacity-50"
             >
               {loading ? 'Creando Sala...' : 'Crear Sala'}
