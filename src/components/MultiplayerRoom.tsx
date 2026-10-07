@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Users, Crown, Play } from 'lucide-react'
-// import { useAuth } from '../contexts/AuthContext' // Currently unused
-import { roomHelpers, realtimeHelpers, gameHelpers, insforge } from '../insforge'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { roomHelpers, realtimeHelpers, sessionHelpers } from '../insforge'
 import { Room, Player, Game } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
-import GameSelector from './GameSelector'
 import PlayerAvatar from './PlayerAvatar'
 
 interface MultiplayerRoomProps {
@@ -13,92 +11,334 @@ interface MultiplayerRoomProps {
   onBack: () => void
 }
 
-type RoomState = 'lobby' | 'game-select' | 'playing' | 'results' | 'finished'
-type GameState = 'waiting' | 'question' | 'answer' | 'leaderboard'
+// La fase sale de la fila de rooms: todos los dispositivos pintan lo mismo
+type Phase = 'lobby' | 'intro' | 'question' | 'reveal' | 'podium'
+
+interface AnswerRow {
+  player_id: string
+  answer: number
+  is_correct?: boolean
+  points_earned?: number
+}
+
+type AnswerIcon = 'pelota' | 'domino' | 'tambora' | 'palma'
+
+// Las cuatro respuestas: un color y un símbolo dominicano cada una
+const ANSWER_STYLES: { bg: string; text: string; icon: AnswerIcon }[] = [
+  { bg: 'bg-dominican-red', text: 'text-dominican-red', icon: 'pelota' },
+  { bg: 'bg-larimar', text: 'text-larimar', icon: 'domino' },
+  { bg: 'bg-ambar', text: 'text-ambar', icon: 'tambora' },
+  { bg: 'bg-palma', text: 'text-palma', icon: 'palma' }
+]
+
+const STATUS_STEP: Record<Room['status'], number> = {
+  waiting: 0,
+  playing: 1,
+  show_results: 2,
+  finished: 3
+}
+
+// Avance de la partida como número creciente, para no retroceder si llega un estado viejo
+const progressOf = (room: Pick<Room, 'status' | 'current_question_index'>) => {
+  if (room.status === 'waiting') return 0
+  if (room.status === 'finished') return Number.MAX_SAFE_INTEGER
+  return (room.current_question_index ?? 0) * 10 + STATUS_STEP[room.status]
+}
+
+// Símbolo de cada respuesta sobre una ficha blanca: pelota de béisbol, ficha de
+// dominó, tambora y palma. Se dibuja con el color de su respuesta.
+const AnswerBadge: React.FC<{ icon: AnswerIcon; color: string; className?: string }> = ({ icon, color, className = 'w-9 h-9' }) => (
+  <span className={`${className} ${color} shrink-0 rounded-full bg-white shadow flex items-center justify-center`}>
+    <svg viewBox="0 0 24 24" className="w-[68%] h-[68%]" aria-hidden="true">
+      {icon === 'pelota' && (
+        <>
+          <circle cx="12" cy="12" r="10" fill="currentColor" />
+          <path d="M6.2 4.6 C9.2 8.6 9.2 15.4 6.2 19.4 M17.8 4.6 C14.8 8.6 14.8 15.4 17.8 19.4" stroke="#fff" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+        </>
+      )}
+      {icon === 'domino' && (
+        <>
+          <rect x="5" y="1.5" width="14" height="21" rx="3" fill="currentColor" />
+          <path d="M7.5 12 H16.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
+          <g fill="#fff">
+            <circle cx="9.3" cy="5" r="1.3" />
+            <circle cx="14.7" cy="8.6" r="1.3" />
+            <circle cx="9.3" cy="15.2" r="1.3" />
+            <circle cx="12" cy="17.4" r="1.3" />
+            <circle cx="14.7" cy="19.6" r="1.3" />
+          </g>
+        </>
+      )}
+      {icon === 'tambora' && (
+        <>
+          <path d="M4.5 7 V16.5 C4.5 19 7.9 21 12 21 S19.5 19 19.5 16.5 V7 Z" fill="currentColor" />
+          <path d="M5.5 10 L8.6 18.6 L12 10.8 L15.4 18.6 L18.5 10" stroke="#fff" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+          <ellipse cx="12" cy="7" rx="7.5" ry="3.4" fill="currentColor" stroke="#fff" strokeWidth="1.4" />
+        </>
+      )}
+      {icon === 'palma' && (
+        <g fill="currentColor">
+          <path d="M10.6 22.5 C10.9 18 11.5 14 12.6 10.5 L14.2 11 C13.3 14.5 13 18.3 13.2 22.5 Z" />
+          <path d="M13 10.5 C10 6.6 6.2 5.8 2.6 8.4 C6.6 7.8 10 8.6 13 10.5 Z" />
+          <path d="M13 10.5 C16 6.6 19.8 5.8 23 8.6 C19.2 7.8 16 8.6 13 10.5 Z" />
+          <path d="M13 10.5 C11.6 6 9 3.2 5.4 2.4 C8.4 4.6 10.8 7 13 10.5 Z" />
+          <path d="M13 10.5 C14.4 6 17 3.2 20.6 2.4 C17.6 4.6 15.2 7 13 10.5 Z" />
+          <path d="M13 10.5 C10 10.8 7.4 12.8 6 16.4 C8.6 13.6 10.8 11.8 13 10.5 Z" />
+          <path d="M13 10.5 C16 10.8 18.6 12.8 20 16.4 C17.4 13.6 15.2 11.8 13 10.5 Z" />
+        </g>
+      )}
+    </svg>
+  </span>
+)
+
+const Scoreboard: React.FC<{ ranked: Player[]; meId: string; limit: number }> = ({ ranked, meId, limit }) => {
+  const myPosition = ranked.findIndex(p => p.id === meId)
+  const visible = ranked.slice(0, limit)
+
+  const row = (p: Player, position: number) => (
+    <li
+      key={p.id}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
+        p.id === meId ? 'bg-dominican-blue text-white' : 'bg-arena'
+      }`}
+    >
+      <span className="w-6 text-center font-display text-lg tabular-nums">{position + 1}</span>
+      <PlayerAvatar avatar={p.avatar} size="sm" />
+      <span className="flex-1 font-bold truncate">{p.name}</span>
+      <span className="font-display text-lg tabular-nums">{p.score ?? 0}</span>
+    </li>
+  )
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-3">
+      <p className="flex items-center gap-2 font-display text-lg text-dominican-blue mb-2">
+        <Trophy className="w-5 h-5 text-ambar" />
+        Tabla de posiciones
+      </p>
+      <ol className="space-y-1.5">
+        {visible.map((p, index) => row(p, index))}
+        {myPosition >= limit && row(ranked[myPosition], myPosition)}
+      </ol>
+    </div>
+  )
+}
 
 const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, player, onBack }) => {
-  // const { user } = useAuth() // Currently unused
-  const { 
-    playCorrect, 
-    playIncorrect, 
-    playTick, 
-    playTimeUp, 
+  const {
+    playCorrect,
+    playIncorrect,
+    playTick,
+    playTimeUp,
     playGameStart,
+    playGameEnd,
+    playAnswerSent,
+    playPlayerJoined,
+    startMusic,
+    stopMusic,
+    toggleMute,
+    isMuted,
     initializeAudio,
-    isAudioEnabled 
+    isAudioEnabled
   } = useGameSounds()
 
-  // Estados principales
+  const roomId = initialRoom.id
+
+  // Estado que viene de la base de datos
   const [room, setRoom] = useState<Room>(initialRoom)
   const [players, setPlayers] = useState<Player[]>([])
-  const [roomState, setRoomState] = useState<RoomState>(
-    initialRoom.status === 'playing' && (initialRoom.current_game_data || initialRoom.game) ? 'playing' : 'lobby'
-  )
-  const [gameState, setGameState] = useState<GameState>(
-    initialRoom.status === 'playing' && (initialRoom.current_game_data || initialRoom.game) ? 'question' : 'waiting'
-  )
-  const [games, setGames] = useState<Game[]>([])
-  
-  // Estados del juego
-  const [currentGame, setCurrentGame] = useState<Game | null>(
-    initialRoom.current_game_data || initialRoom.game || null
-  )
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(30)
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
-  const [showAnswer, setShowAnswer] = useState(false)
-  const [playerAnswers, setPlayerAnswers] = useState<{[playerId: string]: number | null}>({})
-  const [playerAnswerTimes, setPlayerAnswerTimes] = useState<{[playerId: string]: number}>({}) // Tiempo que tardó en responder
-  const [questionStartTime, setQuestionStartTime] = useState<number>(0) // Timestamp de inicio de pregunta
-  const [waitingForPlayers, setWaitingForPlayers] = useState(false)
-  const [lastSyncTimestamp, setLastSyncTimestamp] = useState(0)
-  const [hasTimedOut, setHasTimedOut] = useState(false)
-  const [gameResults, setGameResults] = useState<{[playerId: string]: {correct: number, total: number, score: number}}>({})  
-  
-  // Estados de la UI
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<AnswerRow[]>([]) // respuestas a la pregunta actual
 
-  // Cargar jugadores inicial y juegos
-  useEffect(() => {
-    loadPlayers()
-    loadGames()
-    
-    // Si ya hay un juego cargado, inicializar timer
-    if ((initialRoom.game || initialRoom.current_game_data) && roomState === 'playing') {
-      const gameToUse = initialRoom.current_game_data || initialRoom.game
-      setTimeLeft(gameToUse?.questions?.[0]?.time_limit || 30)
-      console.log('🎯 Initial game loaded:', gameToUse?.title, 'Questions:', gameToUse?.questions?.length)
-    }
-    
-    // IMPORTANTE: Si el participante se une a una sala ya en progreso, cargar el juego inmediatamente
-    if (!player.is_host && initialRoom.status === 'playing' && roomState === 'playing') {
-      console.log('🔄 Participant joining active game - loading immediately')
-      loadGameForParticipant()
-    }
+  // Estado local
+  const [serverOffset, setServerOffset] = useState(0) // reloj del servidor menos el de este dispositivo
+  const [now, setNow] = useState(() => Date.now())
+  const [myAnswer, setMyAnswer] = useState<{ questionId: string; answer: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
+
+  const questions = game?.questions ?? []
+  const questionIndex = room.current_question_index ?? 0
+  const question = questions[questionIndex]
+  const questionId = question?.id
+  const startAt = room.question_started_at ? new Date(room.question_started_at).getTime() : 0
+  const limitMs = (question?.time_limit || 30) * 1000
+  const serverNow = now + serverOffset
+
+  const phase: Phase =
+    room.status === 'waiting' ? 'lobby'
+    : room.status === 'finished' ? 'podium'
+    : room.status === 'show_results' ? 'reveal'
+    : serverNow < startAt ? 'intro'
+    : 'question'
+
+  const timeLeft = Math.max(0, Math.ceil((startAt + limitMs - serverNow) / 1000))
+  const mySavedAnswer = answers.find(a => a.player_id === player.id)
+  const selectedAnswer = myAnswer && myAnswer.questionId === questionId ? myAnswer.answer : mySavedAnswer?.answer ?? null
+
+  const ranked = useMemo(
+    () => [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.joined_at.localeCompare(b.joined_at)),
+    [players]
+  )
+  const myPosition = ranked.findIndex(p => p.id === player.id)
+  const myScore = ranked[myPosition]?.score ?? 0
+
+  // --- Carga de datos ---
+
+  const applyRoom = useCallback((incoming: Partial<Room> | null | undefined) => {
+    if (!incoming) return
+    setRoom(prev => {
+      const next = { ...prev, ...incoming }
+      return progressOf(next) >= progressOf(prev) ? next : prev
+    })
   }, [])
+
+  const loadRoom = useCallback(async () => {
+    const { data } = await roomHelpers.getRoom(roomId)
+    applyRoom(data)
+  }, [roomId, applyRoom])
+
+  const loadPlayers = useCallback(async () => {
+    const { data } = await roomHelpers.getRoomPlayers(roomId)
+    if (data) setPlayers(data)
+  }, [roomId])
+
+  const loadGame = useCallback(async () => {
+    const { data } = await roomHelpers.getRoomGame(roomId)
+    if (data) {
+      setSessionId(data.sessionId)
+      setGame(data.game)
+    }
+  }, [roomId])
+
+  const currentQuestionId = useRef<string | undefined>(questionId)
+
+  const loadAnswers = useCallback(async () => {
+    if (!sessionId || !questionId) return
+    const { data } = await sessionHelpers.getQuestionAnswers(sessionId, questionId)
+    // puede haber cambiado la pregunta mientras llegaba la respuesta
+    if (data && currentQuestionId.current === questionId) setAnswers(data)
+  }, [sessionId, questionId])
+
+  useEffect(() => {
+    loadRoom()
+    loadPlayers()
+    loadGame()
+    sessionHelpers.getServerTimeOffset().then(setServerOffset)
+  }, [loadRoom, loadPlayers, loadGame])
+
+  // --- Tiempo real ---
+
+  useEffect(() => {
+    const subscriptions = [
+      realtimeHelpers.subscribeToRoom(roomId, (payload) => applyRoom(payload.new)),
+      realtimeHelpers.subscribeToRoomPlayers(roomId, () => loadPlayers()),
+      realtimeHelpers.subscribeToGameSession(roomId, () => loadGame()),
+      // lo ocurrido durante un corte de conexión no se reenvía: se vuelve a leer
+      realtimeHelpers.onReconnect(() => {
+        loadRoom()
+        loadPlayers()
+        loadGame()
+      })
+    ]
+
+    return () => {
+      subscriptions.forEach(realtimeHelpers.unsubscribe)
+    }
+  }, [roomId, applyRoom, loadRoom, loadPlayers, loadGame])
+
+  useEffect(() => {
+    if (!sessionId) return
+
+    const subscription = realtimeHelpers.subscribeToSessionAnswers(sessionId, (payload) => {
+      const row = payload.new
+      if (payload.eventType !== 'INSERT' || !row || row.question_id !== currentQuestionId.current) return
+      setAnswers(prev => (prev.some(a => a.player_id === row.player_id) ? prev : [...prev, row]))
+    })
+
+    return () => {
+      realtimeHelpers.unsubscribe(subscription)
+    }
+  }, [sessionId])
+
+  // Red de seguridad por si se pierde un evento: releer la fase cada pocos segundos
+  useEffect(() => {
+    if (room.status === 'finished') return
+    const interval = setInterval(loadRoom, 4000)
+    return () => clearInterval(interval)
+  }, [room.status, loadRoom])
+
+  // Al cambiar de pregunta se empieza con las respuestas en blanco
+  useEffect(() => {
+    currentQuestionId.current = questionId
+    setAnswers([])
+    setMyAnswer(prev => (prev && prev.questionId === questionId ? prev : null))
+    loadAnswers()
+  }, [questionId, loadAnswers])
+
+  // Al mostrar resultados se leen las respuestas y puntos definitivos
+  useEffect(() => {
+    if (room.status === 'show_results' || room.status === 'finished') {
+      loadAnswers()
+      loadPlayers()
+    }
+  }, [room.status, questionIndex, loadAnswers, loadPlayers])
+
+  // Reloj local mientras hay una pregunta abierta
+  useEffect(() => {
+    if (room.status !== 'playing') return
+    setNow(Date.now())
+    const interval = setInterval(() => setNow(Date.now()), 200)
+    return () => clearInterval(interval)
+  }, [room.status, questionIndex])
+
+  // --- Cierre de la pregunta ---
+
+  const revealRequestedFor = useRef<number | null>(null)
+
+  const requestReveal = useCallback(async () => {
+    if (revealRequestedFor.current === questionIndex) return
+    revealRequestedFor.current = questionIndex
+    const { data, error } = await roomHelpers.revealAnswer(roomId, questionIndex)
+    if (error) {
+      revealRequestedFor.current = null
+      return
+    }
+    applyRoom(data)
+  }, [roomId, questionIndex, applyRoom])
+
+  useEffect(() => {
+    if (phase !== 'question' || !question) return
+
+    const everyoneAnswered = players.length > 0 && answers.length >= players.length
+    // El anfitrión cierra la pregunta; los demás lo hacen poco después por si su
+    // dispositivo está en segundo plano o sin conexión
+    const graceMs = player.is_host ? 300 : 2500
+    const timeIsUp = serverNow >= startAt + limitMs + graceMs
+
+    if ((player.is_host && everyoneAnswered) || timeIsUp) {
+      requestReveal()
+    }
+  }, [phase, question, players.length, answers.length, serverNow, startAt, limitMs, player.is_host, requestReveal])
+
+  // --- Sonidos ---
 
   // Inicializar audio con primera interacción del usuario
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!isAudioEnabled) {
-        initializeAudio().then(success => {
-          if (success) {
-            console.log('Audio inicializado correctamente en MultiplayerRoom')
-          }
-        })
+        initializeAudio()
       }
-      // Remover listeners después de la primera interacción
       document.removeEventListener('click', handleFirstInteraction)
       document.removeEventListener('keydown', handleFirstInteraction)
       document.removeEventListener('touchstart', handleFirstInteraction)
     }
-    
-    // Agregar listeners para diferentes tipos de interacción
+
     document.addEventListener('click', handleFirstInteraction)
-    document.addEventListener('keydown', handleFirstInteraction)  
+    document.addEventListener('keydown', handleFirstInteraction)
     document.addEventListener('touchstart', handleFirstInteraction)
-    
+
     return () => {
       document.removeEventListener('click', handleFirstInteraction)
       document.removeEventListener('keydown', handleFirstInteraction)
@@ -106,1656 +346,470 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     }
   }, [initializeAudio, isAudioEnabled])
 
-  // Suscribirse a cambios en jugadores
+  const previousPhase = useRef<Phase>(phase)
+
   useEffect(() => {
-    const subscription = realtimeHelpers.subscribeToRoomPlayers(
-      room.id,
-      (payload) => {
-        console.log('Players changed:', payload)
-        loadPlayers()
-      }
-    )
+    const before = previousPhase.current
+    previousPhase.current = phase
+    if (before === phase) return
 
-    return () => {
-      realtimeHelpers.unsubscribe(subscription)
+    if (phase === 'intro' && questionIndex === 0) playGameStart()
+    if (phase === 'reveal') {
+      if (!mySavedAnswer) playTimeUp()
+      else if (mySavedAnswer.is_correct) playCorrect()
+      else playIncorrect()
     }
-  }, [room.id])
+    if (phase === 'podium') playGameEnd()
+  }, [phase])
 
-  // Suscribirse a cambios en la sala
   useEffect(() => {
-    const subscription = realtimeHelpers.subscribeToRoom(
-      room.id,
-      (payload) => {
-        console.log('🔄 Room changed:', payload)
-        console.log('🎮 Current player:', player.name, 'Is host:', player.is_host)
-        
-        if (payload.new?.status !== room.status) {
-          console.log('📦 Room update payload:', payload.new)
-          setRoom(prev => ({ ...prev, ...payload.new }))
-          
-          if (payload.new.status === 'playing') {
-            console.log('🚀 Starting game for:', player.name)
-            
-            if (player.is_host) {
-              // El host ya tiene el juego, no necesita cargarlo de nuevo
-              console.log('🏠 Host already has game, skipping load')
-              setRoomState('playing')
-              setGameState('question')
-            } else {
-              // Los participantes necesitan cargar el juego desde múltiples fuentes
-              console.log('👥 Participant needs to load game immediately')
-              loadGameForParticipant()
-            }
-          }
-        }
-        
-        // RESPALDO: Detectar cambios en current_question_index como sincronización alternativa
-        if (!player.is_host && payload.new?.current_question_index !== undefined && 
-            payload.new.current_question_index !== room.current_question_index &&
-            roomState === 'playing' && currentGame?.questions) {
-          
-          const newQuestionIndex = payload.new.current_question_index
-          console.log(`🔄 [${player.name}] BACKUP SYNC: Room question index changed to ${newQuestionIndex}`)
-          
-          if (newQuestionIndex >= 0 && newQuestionIndex < currentGame.questions.length) {
-            console.log(`🔄 [${player.name}] BACKUP SYNC: Updating to question ${newQuestionIndex + 1}`)
-            setCurrentQuestionIndex(newQuestionIndex)
-            setGameState('question')
-            setTimeLeft(currentGame.questions[newQuestionIndex].time_limit || 30)
-            setShowAnswer(false)
-            setSelectedAnswer(null)
-            setPlayerAnswers({})
-            setWaitingForPlayers(false)
-            setError(null)
-          }
-        }
-        
-        // Actualizar estado de la sala en todos los casos
-        setRoom(prev => ({ ...prev, ...payload.new }))
-      }
-    )
-
-    return () => {
-      realtimeHelpers.unsubscribe(subscription)
+    if (phase === 'question' && selectedAnswer === null && timeLeft > 0 && timeLeft <= 5) {
+      playTick(timeLeft <= 3)
     }
-  }, [room.id])
+  }, [timeLeft])
 
-  // Suscribirse a cambios en game_sessions para recibir el juego (TODOS los jugadores)
+  // La música suena solo en el dispositivo del anfitrión, para que no se pisen
+  // varios dispositivos cuando todos juegan en el mismo lugar
   useEffect(() => {
-    console.log('🔗 Setting up game session subscription for:', player.name, 'Room:', room.id)
-    
-    const subscription = realtimeHelpers.subscribeToGameSession(
-      room.id,
-      async (payload) => {
-        console.log('🎯 Game session changed for', player.name, ':', payload)
-        
-        if (payload.eventType === 'INSERT' && payload.new) {
-          // Se creó una nueva sesión de juego
-          console.log(`🎮 New game session detected for ${player.name}`)
-          
-          if (!player.is_host) {
-            // Los participantes cargan inmediatamente el juego
-            console.log('🔄 Participant loading game immediately after session creation')
-            await loadGameForParticipant()
-          }
-        }
-      }
-    )
+    if (!player.is_host) return
+    if (phase === 'lobby') startMusic('lobby')
+    else if (phase === 'question') startMusic('countdown')
+    else stopMusic()
+  }, [phase, player.is_host, startMusic, stopMusic])
 
-    return () => {
-      realtimeHelpers.unsubscribe(subscription)
-    }
-  }, [room.id, player.is_host, player.name])
+  useEffect(() => stopMusic, [stopMusic])
 
-  // Suscribirse a Broadcast Channel para recibir datos de juego y sincronización
+  // Aviso sonoro cuando entra alguien a la sala de espera
+  const knownPlayerCount = useRef(0)
+
   useEffect(() => {
-    const channelName = `game-${room.id}`
-    console.log(`📡 [${player.name}] Setting up BroadcastChannel: ${channelName}`)
-    
-    const gameChannel = new BroadcastChannel(channelName)
-    
-    gameChannel.onmessage = (event) => {
-      console.log(`📡 [${player.name}] Broadcast message received:`, event.data)
-      console.log(`📡 [${player.name}] Current state: roomState=${roomState}, gameState=${gameState}, questionIndex=${currentQuestionIndex}`)
-      
-      if (event.data.type === 'GAME_DATA' && event.data.game) {
-        console.log('✅ Game data received via broadcast:', event.data.game.title, 'Questions:', event.data.game.questions?.length)
-        if (!player.is_host) { // Solo participantes procesan GAME_DATA
-          setCurrentGame(event.data.game)
-          if (roomState === 'playing') {
-            setGameState('question')
-            setTimeLeft(event.data.game.questions?.[0]?.time_limit || 30)
-            setError(null)
-          }
-        }
-      }
-      
-      // Sincronización de estado de juego (TODOS los jugadores escuchan)
-      if (event.data.type === 'GAME_STATE_SYNC' && !player.is_host) {
-        console.log(`🔄 [${player.name}] Game state sync received:`, event.data)
-        
-        const { 
-          questionIndex, 
-          gameState: newGameState, 
-          timeLeft: newTimeLeft, 
-          showAnswer: newShowAnswer,
-          gameEnded,
-          timestamp,
-          questionStartTime: syncedStartTime // Timestamp sincronizado del host
-        } = event.data
-        
-        console.log(`🔄 [${player.name}] Current state: Q${currentQuestionIndex}, New state: Q${questionIndex}`)
-        
-        // Ignorar mensajes duplicados o antiguos
-        if (timestamp && timestamp <= lastSyncTimestamp) {
-          console.log(`📝 [${player.name}] Ignoring duplicate/old sync message`)
-          return
-        }
-        
-        if (timestamp) {
-          setLastSyncTimestamp(timestamp)
-        }
-        
-        // Manejar fin del juego
-        if (gameEnded) {
-          console.log('🏁 Participant syncing to game end')
-          setRoomState('results')
-          setGameState('leaderboard')
-          return
-        }
-        
-        // Sincronizar estado solo si no es el host
-        console.log(`🔄 [${player.name}] Syncing: Q${currentQuestionIndex} → Q${questionIndex}, gameState: ${newGameState}, showAnswer: ${newShowAnswer}`)
-        
-        setCurrentQuestionIndex(questionIndex)
-        setGameState(newGameState)
-        setTimeLeft(newTimeLeft)
-        setShowAnswer(newShowAnswer)
-        
-        // Solo resetear selectedAnswer si es una nueva pregunta (diferente índice)
-        if (questionIndex !== currentQuestionIndex) {
-          setSelectedAnswer(null) // Resetear respuesta del participante
-          setPlayerAnswers({}) // Limpiar respuestas anteriores
-          setPlayerAnswerTimes({}) // Limpiar tiempos de respuesta
-          setHasTimedOut(false) // Resetear estado de timeout
-          
-          // Usar el questionStartTime sincronizado del host si está disponible
-          if (syncedStartTime) {
-            console.log(`⏰ [${player.name}] Using synced start time from host: ${syncedStartTime}`)
-            setQuestionStartTime(syncedStartTime)
-          } else {
-            console.log(`⏰ [${player.name}] No synced start time, using current time`)
-            setQuestionStartTime(Date.now())
-          }
-        }
-        
-        setWaitingForPlayers(false)
-        setError(null)
-        
-        console.log(`✅ [${player.name}] Participant synced to question ${questionIndex + 1}, timeLeft: ${newTimeLeft}s`)
-      }
-      
-      // Sincronización del temporizador (solo participantes)
-      if (event.data.type === 'TIMER_SYNC' && !player.is_host) {
-        const { timeLeft: syncedTime, questionIndex: syncedQuestionIndex } = event.data
-        
-        // Solo sincronizar si estamos en la misma pregunta y no se está mostrando la respuesta
-        if (syncedQuestionIndex === currentQuestionIndex && !showAnswer) {
-          setTimeLeft(syncedTime)
-          console.log(`🕒 Participant timer synced: ${syncedTime}s`)
-        }
-      }
+    if (phase === 'lobby' && knownPlayerCount.current > 0 && players.length > knownPlayerCount.current) {
+      playPlayerJoined()
     }
-    
-    return () => {
-      gameChannel.close()
-    }
-  }, [room.id, player.is_host, roomState, currentQuestionIndex, showAnswer])
+    knownPlayerCount.current = players.length
+  }, [players.length])
 
-  // Suscribirse al canal en tiempo real de la sala para sincronización de estado del juego
-  useEffect(() => {
-    if (!room.id) return
+  // --- Acciones ---
 
-    console.log(`📡 [${player.name}] Setting up real-time game sync for room: ${room.id}`)
-    
-    const syncSubscription = realtimeHelpers.subscribeToGameSync(room.id, 'game_state_sync', (data) => {
-      console.log(`📡 [${player.name}] Real-time message received:`, data)
-      
-      if (player.is_host) {
-        console.log(`📡 [${player.name}] Host ignoring own sync message`)
-        return
-      }
-      
-      if (!data || data.sender === player.name) {
-        console.log(`📡 [${player.name}] Ignoring message from self`)
-        return
-      }
-      
-      console.log(`🔄 [${player.name}] Processing InsForge sync:`, data)
-      
-      // Procesar el mensaje de sincronización igual que BroadcastChannel
-      if (data.type === 'GAME_STATE_SYNC') {
-        const { 
-          questionIndex, 
-          gameState: newGameState, 
-          timeLeft: newTimeLeft, 
-          showAnswer: newShowAnswer,
-          gameEnded,
-          timestamp,
-          questionStartTime: syncedStartTime // Timestamp sincronizado del host
-        } = data
-        
-        console.log(`🔄 [${player.name}] InsForge sync: Q${currentQuestionIndex} → Q${questionIndex}`)
-        
-        // Ignorar mensajes duplicados o antiguos
-        if (timestamp && timestamp <= lastSyncTimestamp) {
-          console.log(`📝 [${player.name}] Ignoring old InsForge sync message`)
-          return
-        }
-        
-        if (timestamp) {
-          setLastSyncTimestamp(timestamp)
-        }
-        
-        // Manejar fin del juego
-        if (gameEnded) {
-          console.log(`🏁 [${player.name}] InsForge sync: Game ended`)
-          setRoomState('results')
-          setGameState('leaderboard')
-          return
-        }
-        
-        // Sincronizar estado
-        console.log(`🔄 [${player.name}] InsForge syncing: Q${currentQuestionIndex} → Q${questionIndex}, gameState: ${newGameState}, showAnswer: ${newShowAnswer}`)
-        
-        setCurrentQuestionIndex(questionIndex)
-        setGameState(newGameState)
-        setTimeLeft(newTimeLeft)
-        setShowAnswer(newShowAnswer)
-        
-        // Solo resetear selectedAnswer si es una nueva pregunta (diferente índice)
-        if (questionIndex !== currentQuestionIndex) {
-          setSelectedAnswer(null)
-          setPlayerAnswers({})
-          setPlayerAnswerTimes({})
-          setHasTimedOut(false)
-          
-          // Usar el questionStartTime sincronizado del host si está disponible
-          if (syncedStartTime) {
-            console.log(`⏰ [${player.name}] InsForge: Using synced start time from host: ${syncedStartTime}`)
-            setQuestionStartTime(syncedStartTime)
-          } else {
-            console.log(`⏰ [${player.name}] InsForge: No synced start time, using current time`)
-            setQuestionStartTime(Date.now())
-          }
-        }
-        
-        setWaitingForPlayers(false)
-        setError(null)
-        
-        console.log(`✅ [${player.name}] InsForge sync completed to question ${questionIndex + 1}, timeLeft: ${newTimeLeft}s`)
-      }
-    })
-    
-    // Escuchar respuestas de otros jugadores
-    const answerSubscription = realtimeHelpers.subscribeToGameSync(room.id, 'player_answer', (data) => {
-      console.log(`📡 [${player.name}] Player answer received:`, data)
-      
-      if (!data || data.player_id === player.id) {
-        console.log(`📡 [${player.name}] Ignoring own answer`)
-        return
-      }
-      
-      if (data.question_index !== currentQuestionIndex) {
-        console.log(`📡 [${player.name}] Answer for different question, ignoring`)
-        return
-      }
-      
-      console.log(`📝 [${player.name}] Recording answer from ${data.player_name}: ${data.answer_index}, time: ${data.answer_time}ms`)
-      
-      // Actualizar respuestas y tiempos de otros jugadores
-      setPlayerAnswers(prev => ({
-        ...prev,
-        [data.player_id]: data.answer_index
-      }))
-      
-      if (data.answer_time !== undefined) {
-        setPlayerAnswerTimes(prev => ({
-          ...prev,
-          [data.player_id]: data.answer_time
-        }))
-      }
-    })
-    
-    return () => {
-      console.log(`📡 [${player.name}] Cleaning up real-time game sync`)
-      realtimeHelpers.unsubscribe(syncSubscription)
-      realtimeHelpers.unsubscribe(answerSubscription)
-    }
-  }, [room.id, player.name, player.is_host, currentQuestionIndex, lastSyncTimestamp])
-
-  // Verificar si todos han respondido cuando las respuestas cambien
-  useEffect(() => {
-    if (gameState !== 'question' || showAnswer) return
-    
-    const totalConnectedPlayers = players.filter(p => p.id).length
-    const answeredPlayers = Object.keys(playerAnswers).filter(id => playerAnswers[id] !== null).length
-    
-    console.log(`📊 [${player.name}] Answer check: ${answeredPlayers}/${totalConnectedPlayers} players answered`)
-    console.log(`📊 [${player.name}] Current answers:`, playerAnswers)
-    
-    if (totalConnectedPlayers > 0 && answeredPlayers === totalConnectedPlayers) {
-      console.log(`🎯 [${player.name}] All players have answered! Showing answers.`)
-      setShowAnswer(true)
-      setWaitingForPlayers(false)
-      
-      // Solo el host sincroniza el estado de "mostrar respuestas"
-      if (player.is_host) {
-        console.log(`📡 [HOST-${player.name}] Broadcasting show answer state to all players`)
-        
-        const broadcastMessage = {
-          type: 'GAME_STATE_SYNC',
-          questionIndex: currentQuestionIndex,
-          gameState: 'question',
-          timeLeft: timeLeft,
-          showAnswer: true,
-          timestamp: Date.now()
-        }
-        
-        // Enviar via InsForge Realtime
-        realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
-          ...broadcastMessage,
-          sender: player.name,
-          room_id: room.id
-        }).then(() => {
-          console.log(`✅ [HOST-${player.name}] Show answer state broadcasted`)
-        }).catch((err) => {
-          console.error('Error broadcasting show answer:', err)
-        })
-      }
-    }
-  }, [playerAnswers, players, gameState, showAnswer, currentQuestionIndex, timeLeft, player.is_host, player.name, room.id])
-
-  // Función para calcular puntos basados en velocidad y corrección
-  const calculatePoints = (isCorrect: boolean, timeLimit: number, answerTime: number): number => {
-    if (!isCorrect) return 0
-    
-    // Puntos base por respuesta correcta
-    const basePoints = 500
-    
-    // Convertir timeLimit a milisegundos
-    const timeLimitMs = timeLimit * 1000
-    
-    // Puntos bonus por velocidad (máximo 500 puntos adicionales)
-    // Fórmula: bonus = 500 * (tiempo restante / tiempo límite)
-    // Respuesta instantánea = 500 bonus, respuesta al final = 0 bonus
-    const timeRemaining = timeLimitMs - answerTime
-    const timeBonus = Math.floor(500 * (timeRemaining / timeLimitMs))
-    
-    const totalPoints = basePoints + Math.max(0, timeBonus)
-    
-    console.log(`💯 Points calculation:`)
-    console.log(`   - Time limit: ${timeLimit}s (${timeLimitMs}ms)`)
-    console.log(`   - Answer time: ${answerTime}ms (${(answerTime/1000).toFixed(2)}s)`)
-    console.log(`   - Time remaining: ${timeRemaining}ms`)
-    console.log(`   - Base points: ${basePoints}`)
-    console.log(`   - Time bonus: ${timeBonus}`)
-    console.log(`   - Total points: ${totalPoints}`)
-    
-    return totalPoints
+  const handleStart = async () => {
+    setBusy(true)
+    setError(null)
+    const { data, error } = await roomHelpers.startGame(roomId)
+    if (error) setError('No se pudo iniciar el juego')
+    else applyRoom(data)
+    setBusy(false)
   }
 
-  // Calcular resultados cuando se muestren las respuestas (sin incluir gameResults en dependencias para evitar loops)
-  useEffect(() => {
-    if (showAnswer && gameState === 'question' && currentGame?.questions?.[currentQuestionIndex]) {
-      const currentQuestion = currentGame.questions[currentQuestionIndex]
-      const timeLimit = currentQuestion.time_limit || 30
-      
-      console.log('📊 Calculating results for question:', currentQuestionIndex)
-      console.log('📊 Player answers:', playerAnswers)
-      console.log('📊 Player answer times:', playerAnswerTimes)
-      
-      setGameResults(prevResults => {
-        const newResults = { ...prevResults }
-        
-        players.forEach(p => {
-          if (!newResults[p.id]) {
-            newResults[p.id] = { correct: 0, total: 0, score: 0 }
-          }
-          
-          const playerAnswer = playerAnswers[p.id]
-          const answerTime = playerAnswerTimes[p.id] || (timeLimit * 1000) // Si no hay tiempo, usar el límite
-          const isCorrect = playerAnswer === currentQuestion.correct_answer
-          
-          console.log(`📊 Player ${p.name}:`, {
-            answer: playerAnswer,
-            answerTime: answerTime,
-            answerTimeSeconds: (answerTime / 1000).toFixed(2),
-            correctAnswer: currentQuestion.correct_answer,
-            isCorrect
-          })
-          
-          // Solo actualizar si esta pregunta no se ha contado aún
-          if (newResults[p.id].total <= currentQuestionIndex) {
-            newResults[p.id].total += 1
-            if (isCorrect) {
-              newResults[p.id].correct += 1
-              const points = calculatePoints(isCorrect, timeLimit, answerTime)
-              newResults[p.id].score += points
-              console.log(`📊 Player ${p.name}: +${points} points (total: ${newResults[p.id].score})`)
-            } else {
-              console.log(`📊 Player ${p.name}: 0 points (incorrect answer)`)
-            }
-          }
-        })
-        
-        console.log('📊 Updated game results:', newResults)
-        return newResults
-      })
-    }
-  }, [showAnswer, gameState, currentQuestionIndex, currentGame, players, playerAnswers, playerAnswerTimes])
+  const handleAnswer = async (answerIndex: number) => {
+    if (phase !== 'question' || selectedAnswer !== null || !sessionId || !question) return
 
-  // Efecto especial para el host: iniciar el juego automáticamente si ya tiene los datos
-  useEffect(() => {
-    if (player.is_host && roomState === 'playing' && currentGame && gameState === 'waiting') {
-      console.log('🏠 Host auto-starting game with current data')
-      setGameState('question')
-      setQuestionStartTime(Date.now()) // Iniciar cronómetro
-      if (currentGame.questions?.[0]) {
-        setTimeLeft(currentGame.questions[0].time_limit || 30)
-      }
-    }
-  }, [player.is_host, roomState, currentGame, gameState])
+    setError(null)
+    setMyAnswer({ questionId: question.id, answer: answerIndex })
+    playAnswerSent()
 
-  // Efecto de recuperación para participantes: intentar cargar el juego cada 2 segundos si no tiene preguntas
-  useEffect(() => {
-    if (player.is_host || roomState !== 'playing' || gameState !== 'question') return
-    
-    // Si el participante está en un juego activo pero no tiene preguntas, intentar cargar
-    if (!currentGame?.questions?.length) {
-      console.log('🔄 Participant missing questions - attempting recovery')
-      const recoveryInterval = setInterval(() => {
-        console.log('🔄 Recovery attempt for participant')
-        loadGameForParticipant()
-      }, 2000)
+    const { data, error } = await sessionHelpers.submitAnswer(sessionId, player.id, question.id, answerIndex)
 
-      // Limpiar el interval después de 30 segundos o cuando se obtengan las preguntas
-      const timeout = setTimeout(() => {
-        clearInterval(recoveryInterval)
-        console.log('⏰ Recovery timeout reached')
-      }, 30000)
-
-      return () => {
-        clearInterval(recoveryInterval)
-        clearTimeout(timeout)
-      }
-    }
-  }, [player.is_host, roomState, gameState, currentGame?.questions?.length])
-
-  // Timer del juego (solo el host maneja el timer principal)
-  useEffect(() => {
-    if (gameState !== 'question' || showAnswer) return
-
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        // Si el jugador ya respondió, NO actualizar el temporizador para él (mantenerlo congelado)
-        if (selectedAnswer !== null && !player.is_host) {
-          console.log(`⏰ [${player.name}] Timer frozen - player already answered`)
-          return prev // Mantener el tiempo actual sin decrementar
-        }
-        
-        // Si el jugador ya respondió, no ejecutar handleTimeUp para él
-        if (prev <= 1) {
-          // Solo ejecutar handleTimeUp si el jugador no ha respondido o es el host
-          if (selectedAnswer === null || player.is_host) {
-            handleTimeUp()
-          } else {
-            console.log(`⏰ [${player.name}] Timer ended but player already answered, ignoring`)
-          }
-          return 0
-        }
-        
-        const newTime = prev - 1
-        
-        // Sonidos del temporizador solo si no ha respondido - evitar spam
-        if (selectedAnswer === null) {
-          if (newTime === 10) {
-            // Un solo tick a los 10 segundos
-            playTick()
-          } else if (newTime <= 5 && newTime > 0) {
-            // Tick en los últimos 5 segundos
-            playTick()
-          }
-        }
-        
-        // El host sincroniza el temporizador cada 5 segundos
-        if (player.is_host && newTime % 5 === 0 && newTime > 0) {
-          console.log(`🕒 HOST syncing timer: ${newTime}s`)
-          const gameChannel = new BroadcastChannel(`game-${room.id}`)
-          gameChannel.postMessage({
-            type: 'TIMER_SYNC',
-            timeLeft: newTime,
-            questionIndex: currentQuestionIndex
-          })
-          
-          setTimeout(() => gameChannel.close(), 100)
-        }
-        
-        return newTime
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [gameState, showAnswer, playTick, player.is_host, currentQuestionIndex, selectedAnswer, room.id, player.name])
-
-  const loadPlayers = async () => {
-    try {
-      const { data, error } = await roomHelpers.getRoomPlayers(room.id)
-      if (error) {
-        console.error('Error loading players:', error)
-        return
-      }
-      setPlayers(data || [])
-    } catch (err) {
-      console.error('Error:', err)
-    }
-  }
-
-  const loadGames = async () => {
-    try {
-      const { data, error } = await gameHelpers.getAllGames()
-      if (error) {
-        console.error('Error loading games:', error)
-        return
-      }
-      setGames(data || [])
-    } catch (err) {
-      console.error('Error:', err)
-    }
-  }
-
-  const loadGameForParticipant = async () => {
-    console.log('🔄 Loading game for participant using multiple strategies...')
-    console.log('🔄 Current state:', { hasCurrentGame: !!currentGame, hasQuestions: !!currentGame?.questions?.length })
-    
-    // Si ya tenemos el juego con preguntas, no hacer nada
-    if (currentGame?.questions?.length) {
-      console.log('✅ Game already loaded with questions, skipping')
+    if (error) {
+      if (error.code === '23505') return // ya había una respuesta guardada
+      setMyAnswer(null)
+      setError(error.message || 'No se pudo enviar tu respuesta')
       return
     }
-    
-    // Estrategia 1: localStorage
+
+    setAnswers(prev => [...prev.filter(a => a.player_id !== player.id), data])
+  }
+
+  const handleNext = async () => {
+    setBusy(true)
+    setError(null)
+    const isLastQuestion = questionIndex >= questions.length - 1
+    const { data, error } = isLastQuestion
+      ? await roomHelpers.finishGame(roomId)
+      : await roomHelpers.goToNextQuestion(roomId, questionIndex)
+    if (error) setError('No se pudo avanzar')
+    else applyRoom(data)
+    setBusy(false)
+  }
+
+  const handleCopyCode = async () => {
     try {
-      console.log('🔄 Strategy 1: Checking localStorage...')
-      const storedGameData = localStorage.getItem(`game-data-${room.id}`)
-      if (storedGameData) {
-        const gameData = JSON.parse(storedGameData)
-        if (gameData && gameData.questions && gameData.questions.length > 0) {
-          console.log('✅ Game loaded from localStorage:', gameData.title, 'Questions:', gameData.questions.length)
-          setCurrentGame(gameData)
-          setRoomState('playing')
-          setGameState('question')
-          setTimeLeft(gameData.questions[0]?.time_limit || 30)
-          setError(null)
-          return true
-        }
-      }
-      console.log('⚠️ No valid localStorage data')
+      await navigator.clipboard.writeText(room.code)
+      setCodeCopied(true)
+      setTimeout(() => setCodeCopied(false), 2000)
     } catch (err) {
-      console.log('⚠️ localStorage error:', err)
-    }
-    
-    // Estrategia 2: Obtener game_session para obtener game_id
-    try {
-      console.log('🔄 Strategy 2: Getting game session to find game_id...')
-      const { data: sessionData, error: sessionError } = await roomHelpers.getRoomGameSession(room.id)
-      
-      if (sessionError) {
-        console.log('⚠️ Session query error:', sessionError)
-      } else if (sessionData && sessionData.game_id) {
-        console.log('🔄 Found game_id:', sessionData.game_id, 'trying direct fetch...')
-        
-        // Usar el game_id para obtener el juego completo
-        const { data: gameData, error: gameError } = await insforge.database
-          .from('games')
-          .select('*, questions(*)')
-          .eq('id', sessionData.game_id)
-          .single()
-        
-        if (gameError) {
-          console.log('⚠️ Game fetch error:', gameError)
-        } else if (gameData && gameData.questions && gameData.questions.length > 0) {
-          console.log('✅ Game loaded via session + direct fetch:', gameData.title, 'Questions:', gameData.questions.length)
-          setCurrentGame(gameData)
-          setRoomState('playing')
-          setGameState('question')
-          setTimeLeft(gameData.questions[0]?.time_limit || 30)
-          setError(null)
-          return true
-        } else {
-          console.log('⚠️ Game found but no questions:', gameData)
-        }
-      } else {
-        console.log('⚠️ No session data found')
-      }
-    } catch (err) {
-      console.log('⚠️ Session + direct fetch failed:', err)
-    }
-    
-    // Estrategia 3: Broadcast Channel (escuchar por un momento)
-    try {
-      console.log('🔄 Strategy 3: Attempting Broadcast Channel...')
-      const gameChannel = new BroadcastChannel(`game-${room.id}`)
-      
-      return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          gameChannel.close()
-          console.log('⚠️ Broadcast Channel timeout')
-          resolve(false)
-        }, 3000)
-        
-        gameChannel.onmessage = (event) => {
-          if (event.data.type === 'GAME_DATA' && event.data.game && event.data.game.questions) {
-            console.log('✅ Game received via Broadcast Channel:', event.data.game.title, 'Questions:', event.data.game.questions.length)
-            setCurrentGame(event.data.game)
-            setRoomState('playing')
-            setGameState('question')
-            setTimeLeft(event.data.game.questions[0]?.time_limit || 30)
-            setError(null)
-            clearTimeout(timeout)
-            gameChannel.close()
-            resolve(true)
-          }
-        }
-        
-        // Solicitar datos del juego
-        gameChannel.postMessage({ type: 'REQUEST_GAME_DATA' })
-      })
-    } catch (err) {
-      console.log('⚠️ Broadcast Channel failed:', err)
-    }
-    
-    // Estrategia 4: Error state
-    console.error('❌ All strategies failed for participant')
-    setError('Conectando al juego... Si el problema persiste, recarga la página.')
-    return false
-  }
-
-  const handleStartGameSetup = () => {
-    setRoomState('game-select')
-  }
-
-  const handleGameSelected = async (selectedGame: Game) => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      // Crear sesión de juego
-      const { error: sessionError } = await roomHelpers.createGameSession(
-        room.id, 
-        selectedGame.id
-      )
-      
-      if (sessionError) {
-        setError('Error al crear la sesión de juego')
-        console.error('Session error:', sessionError)
-        return
-      }
-      
-      // Actualizar estado de la sala a 'playing'
-      const { error: roomError } = await roomHelpers.updateRoomStatus(room.id, 'playing')
-      
-      if (roomError) {
-        setError('Error al iniciar el juego')
-        console.error('Room error:', roomError)
-        return
-      }
-      
-      // Cargar el juego completo con sus preguntas
-      const { data: fullGameData, error: gameError } = await gameHelpers.getGameWithQuestions(selectedGame.id)
-      
-      if (gameError || !fullGameData) {
-        setError('Error al cargar las preguntas del juego')
-        console.error('Game loading error:', gameError)
-        return
-      }
-      
-      console.log('✅ Full game data loaded:', fullGameData)
-      console.log('✅ Questions count:', fullGameData.questions?.length || 0)
-      
-      setCurrentGame(fullGameData)
-      setRoom(prev => ({ ...prev, status: 'playing' }))
-      
-      // Iniciar el juego directamente
-      setRoomState('playing')
-      setGameState('question')
-      setCurrentQuestionIndex(0)
-      setTimeLeft(fullGameData.questions?.[0]?.time_limit || 30)
-      setQuestionStartTime(Date.now()) // Iniciar cronómetro de la primera pregunta
-      playGameStart()
-    } catch (err) {
-      setError('Error al iniciar el juego')
-      console.error('Error:', err)
-    } finally {
-      setLoading(false)
+      console.error('Error copying to clipboard:', err)
     }
   }
 
+  // --- Vistas ---
 
-  const handleAnswerSelect = useCallback((answerIndex: number) => {
-    if (selectedAnswer !== null || showAnswer || waitingForPlayers) return
+  const renderLobby = () => (
+    <div className="flex-1 flex flex-col items-center gap-6 pt-2">
+      <button
+        onClick={handleCopyCode}
+        className="bg-white rounded-2xl shadow-xl overflow-hidden text-center transition-transform hover:scale-105"
+        title="Copiar código"
+      >
+        <span className="flex h-2">
+          <span className="flex-1 bg-dominican-blue" />
+          <span className="flex-1 bg-white" />
+          <span className="flex-1 bg-dominican-red" />
+        </span>
+        <span className="block px-8 pt-3 pb-4">
+          <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wide">
+            Código de la sala
+            <Copy className="w-4 h-4" />
+          </span>
+          <span className="block font-display text-6xl sm:text-8xl text-dominican-blue tracking-wider tabular-nums">
+            {room.code.slice(0, 3)} {room.code.slice(3)}
+          </span>
+          <span className="block text-xs font-semibold text-gray-500">
+            {codeCopied ? '¡Copiado!' : 'Entra en «Unirse a Sala» y escribe este código'}
+          </span>
+        </span>
+      </button>
 
-    // Calcular tiempo de respuesta
-    const answerTime = Date.now() - questionStartTime
-    console.log(`📝 [${player.name}] Player selected answer: ${answerIndex}, time: ${answerTime}ms`)
-    console.log(`📝 [${player.name}] Player has now answered, should not receive time up messages`)
-    setSelectedAnswer(answerIndex)
-    
-    const currentQuestion = currentGame?.questions?.[currentQuestionIndex]
-    if (!currentQuestion) return
+      {game && (
+        <p className="text-center">
+          <span className="font-display text-xl text-dominican-red">{game.title}</span>
+          <span className="font-semibold text-gray-600"> · {questions.length} preguntas</span>
+        </p>
+      )}
 
-    // Actualizar las respuestas y tiempos locales
-    const newPlayerAnswers = {
-      ...playerAnswers,
-      [player.id]: answerIndex
-    }
-    setPlayerAnswers(newPlayerAnswers)
-    
-    setPlayerAnswerTimes(prev => ({
-      ...prev,
-      [player.id]: answerTime
-    }))
-    
-    // Reproducir sonido basado en si es correcto
-    const isCorrect = answerIndex === currentQuestion.correct_answer
-    if (isCorrect) {
-      playCorrect()
-    } else {
-      playIncorrect()
-    }
-
-    // Enviar respuesta a todos los jugadores via InsForge Realtime
-    try {
-      console.log(`📤 [${player.name}] Sending answer to other players`)
-      realtimeHelpers.sendGameSync(room.id, 'player_answer', {
-        player_id: player.id,
-        player_name: player.name,
-        answer_index: answerIndex,
-        answer_time: answerTime,
-        question_index: currentQuestionIndex,
-        room_id: room.id,
-        timestamp: Date.now()
-      }).then(() => {
-        console.log(`✅ [${player.name}] Answer sent to other players`)
-      }).catch((err) => {
-        console.error('Error sending answer:', err)
-      })
-    } catch (err) {
-      console.error('Error in answer sync:', err)
-    }
-    
-    // Verificar si todos los jugadores conectados han respondido
-    const totalConnectedPlayers = players.filter(p => p.id).length // Solo jugadores con ID válido
-    const answeredPlayers = Object.keys(newPlayerAnswers).filter(id => newPlayerAnswers[id] !== null).length
-    
-    console.log(`📊 [${player.name}] Progreso respuestas: ${answeredPlayers}/${totalConnectedPlayers} jugadores conectados`)
-    console.log(`📊 [${player.name}] Jugadores en sala:`, players.map(p => `${p.name}(${p.id})`))
-    console.log(`📊 [${player.name}] Respuestas recibidas:`, Object.keys(newPlayerAnswers))
-    
-    // La verificación de "todos han respondido" ahora se maneja en el useEffect
-    // para incluir respuestas que llegan de otros jugadores via Real-time
-    if (answeredPlayers < totalConnectedPlayers) {
-      // Aún esperando respuestas de otros jugadores
-      setWaitingForPlayers(true)
-      console.log(`⏳ [${player.name}] Waiting for other players to answer`)
-    }
-  }, [selectedAnswer, showAnswer, waitingForPlayers, player.name, player.id, currentGame, currentQuestionIndex, playerAnswers, playCorrect, playIncorrect, room.id, players, questionStartTime])
-
-  const handleTimeUp = useCallback(() => {
-    if (showAnswer) return
-    
-    console.log(`⏰ [${player.name}] handleTimeUp called - selectedAnswer: ${selectedAnswer}`)
-    
-    // Solo ejecutar lógica de tiempo agotado si este jugador no ha respondido
-    if (selectedAnswer === null) {
-      console.log(`⏰ [${player.name}] Player didn't answer, playing time up sound`)
-      playTimeUp()
-      setHasTimedOut(true) // Marcar que hubo timeout específicamente
-      
-      setPlayerAnswers(prev => ({
-        ...prev,
-        [player.id]: null
-      }))
-      
-      // Registrar tiempo máximo (tiempo agotado)
-      const currentQuestion = currentGame?.questions?.[currentQuestionIndex]
-      const timeLimit = currentQuestion?.time_limit || 30
-      setPlayerAnswerTimes(prev => ({
-        ...prev,
-        [player.id]: timeLimit * 1000
-      }))
-      
-      // Enviar respuesta "sin respuesta" a otros jugadores
-      try {
-        realtimeHelpers.sendGameSync(room.id, 'player_answer', {
-          player_id: player.id,
-          player_name: player.name,
-          answer_index: null, // Sin respuesta por tiempo agotado
-          answer_time: timeLimit * 1000,
-          question_index: currentQuestionIndex,
-          room_id: room.id,
-          timestamp: Date.now()
-        }).catch((err) => {
-          console.error('Error sending timeout answer:', err)
-        })
-      } catch (err) {
-        console.error('Error sending timeout answer:', err)
-      }
-    } else {
-      console.log(`⏰ [${player.name}] Player already answered, skipping time up logic`)
-    }
-    
-    // El host siempre maneja la sincronización de "tiempo agotado" general
-    if (player.is_host) {
-      console.log(`⏰ [HOST-${player.name}] Time up - checking if should show answers`)
-      setShowAnswer(true)
-      setWaitingForPlayers(false)
-    }
-    
-    // SINCRONIZAR tiempo agotado si soy el host (múltiples intentos)
-    if (player.is_host) {
-      console.log('⏰ HOST broadcasting time up state')
-      
-      const broadcastMessage = {
-        type: 'GAME_STATE_SYNC',
-        questionIndex: currentQuestionIndex,
-        gameState: 'question',
-        timeLeft: 0,
-        showAnswer: true,
-        timestamp: Date.now()
-      }
-      
-      // Enviar múltiples veces para asegurar llegada
-      for (let i = 0; i < 3; i++) {
-        setTimeout(() => {
-          const gameChannel = new BroadcastChannel(`game-${room.id}`)
-          gameChannel.postMessage(broadcastMessage)
-          setTimeout(() => gameChannel.close(), 100)
-        }, i * 200)
-      }
-      
-      // NO avanzar automáticamente - esperar que el host presione el botón
-      console.log('⏰ Time up, waiting for host to advance')
-    }
-    
-    // TODO: Registrar respuesta por tiempo agotado
-  }, [showAnswer, selectedAnswer, player.name, player.is_host, playTimeUp, room.id, currentQuestionIndex, timeLeft])
-
-  const handleNextQuestion = () => {
-    if (!currentGame?.questions) return
-
-    const nextIndex = currentQuestionIndex + 1
-    
-    if (nextIndex < currentGame.questions.length) {
-      // Resetear estados para la siguiente pregunta
-      const newTimeLimit = currentGame.questions[nextIndex].time_limit || 30
-      
-      setCurrentQuestionIndex(nextIndex)
-      setSelectedAnswer(null)
-      setShowAnswer(false)
-      setPlayerAnswers({}) // Limpiar respuestas anteriores
-      setPlayerAnswerTimes({}) // Limpiar tiempos de respuesta
-      setWaitingForPlayers(false)
-      setTimeLeft(newTimeLimit)
-      setGameState('question')
-      setHasTimedOut(false) // Resetear estado de timeout
-      
-      // Iniciar cronómetro para nueva pregunta y guardarlo para sincronización
-      const newQuestionStartTime = Date.now()
-      setQuestionStartTime(newQuestionStartTime)
-      
-      // SINCRONIZAR con todos los participantes si soy el host (múltiples intentos para garantizar llegada)
-      if (player.is_host) {
-        console.log(`🎯 [HOST-${player.name}] Broadcasting next question: ${nextIndex + 1} of ${currentGame.questions.length}`)
-        
-        const broadcastMessage = {
-          type: 'GAME_STATE_SYNC',
-          questionIndex: nextIndex,
-          gameState: 'question',
-          timeLeft: newTimeLimit,
-          showAnswer: false,
-          timestamp: Date.now(),
-          totalQuestions: currentGame.questions.length,
-          questionStartTime: newQuestionStartTime // Enviar tiempo de inicio sincronizado
-        }
-        
-        console.log(`🎯 [HOST-${player.name}] Broadcast message:`, broadcastMessage)
-        
-        // Enviar el mensaje múltiples veces para asegurar llegada con mayor frecuencia
-        for (let i = 0; i < 5; i++) {
-          setTimeout(() => {
-            const channelName = `game-${room.id}`
-            const gameChannel = new BroadcastChannel(channelName)
-            console.log(`📤 [HOST-${player.name}] Sending broadcast attempt ${i + 1}/5 on channel: ${channelName}`)
-            console.log(`📤 [HOST-${player.name}] Message content:`, broadcastMessage)
-            gameChannel.postMessage(broadcastMessage)
-            setTimeout(() => gameChannel.close(), 100)
-          }, i * 100) // Reducir tiempo entre intentos a 100ms
-        }
-        
-        // MÉTODO PRINCIPAL: Actualizar base de datos para sincronización confiable
-        try {
-          console.log(`💾 [HOST-${player.name}] Updating room current_question_index for sync`)
-          insforge.database
-            .from('rooms')
-            .update({ 
-              current_question_index: nextIndex
-            })
-            .eq('id', room.id)
-            .then(({ error }) => {
-              if (error) {
-                console.error('Error updating room question index:', error)
-              } else {
-                console.log(`✅ [HOST-${player.name}] Room question index updated to ${nextIndex}`)
-              }
-            })
-        } catch (err) {
-          console.error('Error in database sync:', err)
-        }
-        
-        // MÉTODO ADICIONAL: Usar InsForge Realtime para comunicación inmediata
-        try {
-          console.log(`📡 [HOST-${player.name}] Sending real-time sync via InsForge channel`)
-          realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
-            ...broadcastMessage,
-            sender: player.name,
-            room_id: room.id
-          }).then(() => {
-            console.log(`✅ [HOST-${player.name}] Real-time message sent`)
-          }).catch((err) => {
-            console.error('Error sending real-time message:', err)
-          })
-        } catch (err) {
-          console.error('Error in real-time sync:', err)
-        }
-      }
-    } else {
-      setRoomState('results')
-      setGameState('leaderboard')
-      
-      // SINCRONIZAR fin del juego si soy el host (múltiples intentos)
-      if (player.is_host) {
-        console.log('🏁 HOST broadcasting game end')
-        
-        const broadcastMessage = {
-          type: 'GAME_STATE_SYNC',
-          questionIndex: nextIndex,
-          gameState: 'leaderboard',
-          timeLeft: 0,
-          showAnswer: false,
-          gameEnded: true,
-          timestamp: Date.now()
-        }
-        
-        // Enviar múltiples veces via BroadcastChannel para asegurar llegada
-        for (let i = 0; i < 3; i++) {
-          setTimeout(() => {
-            const gameChannel = new BroadcastChannel(`game-${room.id}`)
-            gameChannel.postMessage(broadcastMessage)
-            setTimeout(() => gameChannel.close(), 100)
-          }, i * 200)
-        }
-        
-        // MÉTODO ADICIONAL: Enviar via InsForge Realtime para mayor confiabilidad
-        try {
-          console.log(`📡 [HOST-${player.name}] Sending game end via InsForge Realtime`)
-          realtimeHelpers.sendGameSync(room.id, 'game_state_sync', {
-            ...broadcastMessage,
-            sender: player.name,
-            room_id: room.id
-          }).then(() => {
-            console.log(`✅ [HOST-${player.name}] Game end message sent via InsForge`)
-          }).catch((err) => {
-            console.error('Error sending game end message:', err)
-          })
-        } catch (err) {
-          console.error('Error in game end sync:', err)
-        }
-      }
-    }
-  }
-
-  const isHost = player.is_host
-
-  // Renderizar lobby
-  if (roomState === 'lobby') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={onBack}
-                  className="text-dominican-blue hover:text-dominican-blue-light"
-                >
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{room.name}</h1>
-                  <p className="text-gray-600">Código: {room.code}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-600" />
-                <span className="font-semibold text-gray-800">
-                  {players.length}/{room.max_players}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {error && (
-            <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          {/* Lista de jugadores */}
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-6">Jugadores en la Sala</h2>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {players.map((p) => (
-                <div
-                  key={p.id}
-                  className={`p-4 rounded-lg border-2 ${
-                    p.id === player.id 
-                      ? 'border-dominican-blue bg-blue-50' 
-                      : 'border-gray-200 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <PlayerAvatar avatar={p.avatar} size="md" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-800">{p.name}</span>
-                        {p.is_host && <Crown className="w-4 h-4 text-yellow-500" />}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        {p.id === player.id ? 'Tú' : 'Jugador'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Controles del host */}
-          {isHost && (
-            <div className="bg-gradient-to-r from-dominican-blue to-dominican-blue-light rounded-xl p-6 text-white">
-              <h3 className="text-xl font-bold mb-4">Panel del Host</h3>
-              <p className="mb-4">
-                {players.length < 2 
-                  ? 'Esperando más jugadores...' 
-                  : `¡Listos para jugar! ${players.length} jugadores conectados`
-                }
-              </p>
-              
-              {room.status === 'waiting' && players.length >= 2 && (
-                <button
-                  onClick={handleStartGameSetup}
-                  disabled={loading}
-                  className="btn-dominican-secondary"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  {loading ? 'Iniciando...' : 'Iniciar Juego'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Mensaje para jugadores no host */}
-          {!isHost && (
-            <div className="bg-white rounded-xl shadow-lg p-6 text-center">
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                Esperando al Host
-              </h3>
-              <p className="text-gray-600">
-                El host iniciará el juego cuando esté listo
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // Renderizar selector de juegos
-  if (roomState === 'game-select') {
-    return (
-      <GameSelector
-        games={games}
-        onSelectGame={handleGameSelected}
-        onBack={() => setRoomState('lobby')}
-        title={`Selecciona un Juego para ${room.name}`}
-      />
-    )
-  }
-
-  // Debug: mostrar estado actual
-  console.log('🎯 MultiplayerRoom Debug:', {
-    roomState,
-    gameState,
-    currentGame: currentGame?.title || 'No game',
-    currentQuestionIndex,
-    hasQuestions: !!currentGame?.questions?.length,
-    initialRoomGame: initialRoom.game?.title || 'No initial game',
-    initialRoomGameQuestions: initialRoom.game?.questions?.length || 0
-  })
-
-  // Renderizar juego activo
-  if (roomState === 'playing' && currentGame && gameState === 'question') {
-    const currentQuestion = currentGame.questions?.[currentQuestionIndex]
-    if (!currentQuestion) return null
-
-    const progress = ((currentQuestionIndex + 1) / (currentGame.questions?.length || 1)) * 100
-
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header del juego */}
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">{currentGame.title}</h1>
-                <p className="text-gray-600">Sala: {room.name}</p>
-              </div>
-              
-              <div className="flex items-center gap-6">
-                {/* Temporizador */}
-                <div className="relative flex items-center justify-center">
-                  <svg
-                    className={`w-16 h-16 ${
-                      timeLeft <= 5 
-                        ? 'timer-critical' 
-                        : timeLeft <= 10 
-                        ? 'timer-warning' 
-                        : 'timer-normal transform -rotate-90'
-                    }`}
-                    viewBox="0 0 64 64"
-                  >
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="4" />
-                    <circle
-                      cx="32" cy="32" r="28" fill="none"
-                      stroke={timeLeft <= 5 ? '#dc2626' : timeLeft <= 10 ? '#f59e0b' : '#10b981'}
-                      strokeWidth="4"
-                      strokeDasharray={`${(timeLeft / currentQuestion.time_limit) * 175.929} 175.929`}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-linear"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`font-bold text-lg ${
-                      timeLeft <= 5 ? 'text-red-600' : timeLeft <= 10 ? 'text-amber-600' : 'text-green-600'
-                    }`}>
-                      {selectedAnswer !== null ? '✓' : timeLeft}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  <div className="font-semibold">
-                    Pregunta {currentQuestionIndex + 1} de {currentGame.questions?.length || 0}
-                  </div>
-                  <div className="text-xs">
-                    {players.length} jugadores
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Barra de progreso */}
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-dominican-blue h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pregunta */}
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <div className="question-card">
-            {currentQuestion.image_url && (
-              <div className="mb-6">
-                <img
-                  src={currentQuestion.image_url}
-                  alt="Imagen de la pregunta"
-                  className="max-w-full h-64 object-cover rounded-lg mx-auto"
-                />
-              </div>
-            )}
-            
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-              {currentQuestion.text}
-            </h2>
-            
-            {/* Progreso de respuestas tipo Kahoot */}
-            {(waitingForPlayers || showAnswer) && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                {waitingForPlayers ? (
-                  <div>
-                    <p className="text-blue-800 font-semibold">
-                      Esperando respuestas...
-                    </p>
-                    <p className="text-blue-600 text-sm">
-                      {Object.keys(playerAnswers).filter(id => playerAnswers[id] !== null).length} de {players.filter(p => p.id).length} jugadores han respondido
-                    </p>
-                  </div>
-                ) : showAnswer && (
-                  <p className="text-green-800 font-semibold">
-                    ¡Todos los jugadores han respondido!
-                  </p>
-                )}
-              </div>
-            )}
-            
-            <div className="grid md:grid-cols-2 gap-4">
-              {currentQuestion.options.map((option, index) => {
-                // Obtener la respuesta del jugador actual (puede estar en selectedAnswer o en playerAnswers)
-                const playerAnswer = selectedAnswer !== null ? selectedAnswer : playerAnswers[player.id]
-                // Solo considerar como selección del jugador si realmente hay una respuesta válida
-                // Importante: Verificar que playerAnswers[player.id] existe antes de usar su valor
-                const hasLocalAnswer = selectedAnswer !== null
-                const hasRemoteAnswer = player.id in playerAnswers && playerAnswers[player.id] !== null && playerAnswers[player.id] !== undefined
-                const isPlayerChoice = (hasLocalAnswer || hasRemoteAnswer) && playerAnswer === index
-                
-                // Debug logging para identificar el problema en móvil
-                if (index === 0 && isPlayerChoice && !hasLocalAnswer && !showAnswer) {
-                  console.warn('🐛 DEBUG: Respuesta sombreada detectada en índice 0', {
-                    selectedAnswer,
-                    playerAnswersForThisPlayer: playerAnswers[player.id],
-                    playerAnswers,
-                    playerId: player.id,
-                    hasLocalAnswer,
-                    hasRemoteAnswer,
-                    playerAnswer,
-                    isPlayerChoice
-                  })
-                }
-                const isCorrect = index === currentQuestion.correct_answer
-                
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleAnswerSelect(index)}
-                    disabled={showAnswer}
-                    className={`answer-option ${
-                      showAnswer
-                        ? isPlayerChoice && isCorrect
-                          ? 'answer-option-correct'  // Respuesta del jugador Y es correcta
-                          : isPlayerChoice
-                          ? 'answer-option-incorrect' // Respuesta del jugador pero incorrecta
-                          : ''
-                        : isPlayerChoice
-                        ? 'answer-option-selected'
-                        : ''
-                    }`}
-                  >
-                    <span>{option}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {showAnswer && (
-              <div className="mt-8">
-                {/* Resultado de la respuesta */}
-                <div className="text-center mb-6">
-                  {(() => {
-                    // Obtener la respuesta del jugador actual de forma más robusta
-                    const playerAnswer = selectedAnswer !== null ? selectedAnswer : playerAnswers[player.id]
-                    const isCorrect = playerAnswer === currentQuestion.correct_answer
-                    // Verificar que realmente existe una respuesta válida
-                    const hasLocalAnswer = selectedAnswer !== null
-                    const hasRemoteAnswer = player.id in playerAnswers && playerAnswers[player.id] !== null && playerAnswers[player.id] !== undefined
-                    const hasAnswered = hasLocalAnswer || hasRemoteAnswer
-                    
-                    return (
-                      <div className={`text-2xl font-bold mb-4 ${
-                        isCorrect ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {isCorrect
-                          ? '¡Correcto!' 
-                          : hasTimedOut && !hasAnswered
-                          ? '¡Tiempo Agotado!' 
-                          : '¡Incorrecto!'
-                        }
-                      </div>
-                    )
-                  })()}
-                </div>
-
-                {/* Leaderboard parcial - Visible para TODOS los jugadores */}
-                <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">
-                    📊 Clasificación Actual
-                  </h3>
-                  <div className="space-y-2">
-                    {players
-                      .map(p => {
-                        const playerResults = gameResults[p.id] || { correct: 0, total: 0, score: 0 }
-                        return {
-                          ...p,
-                          score: playerResults.score,
-                          correct: playerResults.correct
-                        }
-                      })
-                      .sort((a, b) => b.score - a.score)
-                      .map((p, index) => {
-                        const isCurrentPlayer = p.id === player.id
-                        return (
-                          <div
-                            key={p.id}
-                            className={`flex items-center gap-3 p-3 rounded-lg ${
-                              isCurrentPlayer 
-                                ? 'bg-blue-100 border-2 border-blue-400' 
-                                : index < 3 
-                                ? 'bg-yellow-50 border border-yellow-200'
-                                : 'bg-gray-50 border border-gray-200'
-                            }`}
-                          >
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                              index === 0 ? 'bg-yellow-500 text-white' :
-                              index === 1 ? 'bg-gray-400 text-white' :
-                              index === 2 ? 'bg-orange-500 text-white' :
-                              'bg-gray-300 text-gray-700'
-                            }`}>
-                              {index + 1}
-                            </div>
-                            <PlayerAvatar avatar={p.avatar} size="md" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-800">
-                                {p.name}
-                                {isCurrentPlayer && (
-                                  <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                                    Tú
-                                  </span>
-                                )}
-                              </h4>
-                              <p className="text-xs text-gray-600">
-                                {p.correct} correctas
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-bold text-gray-800">
-                                {p.score}
-                              </div>
-                              <div className="text-xs text-gray-500">pts</div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                  </div>
-                </div>
-                
-                {/* Controles del host para avanzar */}
-                <div className="text-center">
-                  {player.is_host ? (
-                    <div className="space-y-4">
-                      <div className="text-lg text-gray-600 mb-4">
-                        Todos los jugadores han respondido
-                      </div>
-                      
-                      {currentQuestionIndex + 1 < (currentGame?.questions?.length || 0) ? (
-                        <button
-                          onClick={handleNextQuestion}
-                          className="btn-dominican-primary px-8 py-3 text-lg"
-                        >
-                          ▶️ Siguiente Pregunta ({currentQuestionIndex + 2} de {currentGame?.questions?.length})
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleNextQuestion}
-                          className="btn-dominican-primary px-8 py-3 text-lg"
-                        >
-                          🏁 Ver Resultados Finales
-                        </button>
-                      )}
-                      
-                      <div className="text-sm text-gray-500">
-                        Solo el host puede avanzar a la siguiente pregunta
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-lg text-gray-600">
-                      {currentQuestionIndex + 1 < (currentGame?.questions?.length || 0) 
-                        ? 'Esperando que el host avance a la siguiente pregunta...'
-                        : 'Esperando que el host muestre los resultados finales...'
-                      }
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Renderizar resultados
-  if (roomState === 'results') {
-    // Calcular leaderboard basado en gameResults
-    const leaderboard = players
-      .map(p => {
-        const playerResults = gameResults[p.id] || { correct: 0, total: 0, score: 0 }
-        const accuracy = playerResults.total > 0 ? Math.round((playerResults.correct / playerResults.total) * 100) : 0
-        
-        return {
-          ...p,
-          finalScore: playerResults.score,
-          correctAnswers: playerResults.correct,
-          totalQuestions: playerResults.total,
-          accuracy: accuracy,
-          rank: 0
-        }
-      })
-      .sort((a, b) => {
-        // Ordenar por puntuación, luego por precisión, luego por nombre
-        if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore
-        if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy
-        return a.name.localeCompare(b.name)
-      })
-      .map((p, index) => ({ ...p, rank: index + 1 }))
-
-    const currentPlayerRank = leaderboard.find(p => p.id === player.id)?.rank || 0
-
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm">
-          <div className="max-w-4xl mx-auto px-6 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="text-dominican-blue hover:text-dominican-blue-light"
-              >
-                <ArrowLeft className="w-6 h-6" />
-              </button>
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-800">Resultados Finales</h1>
-                <p className="text-gray-600">{room.name} - {currentGame?.title}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {/* Podio de ganadores */}
-          {leaderboard.length > 0 && (
-            <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">¡Juego Terminado!</h2>
-                <p className="text-gray-600">Felicitaciones a todos los participantes</p>
-              </div>
-
-              {/* Top 3 */}
-              <div className="flex justify-center items-end gap-8 mb-8">
-                {/* Segundo lugar */}
-                {leaderboard[1] && (
-                  <div className="text-center">
-                    <div className="mb-3">
-                      <PlayerAvatar avatar={leaderboard[1].avatar} size="lg" />
-                    </div>
-                    <div className="bg-gray-100 rounded-lg px-4 py-6">
-                      <div className="text-2xl font-bold text-gray-600 mb-1">2°</div>
-                      <div className="font-semibold text-gray-800">{leaderboard[1].name}</div>
-                      <div className="text-lg text-gray-600">{leaderboard[1].finalScore} pts</div>
-                      <div className="text-sm text-gray-500">{leaderboard[1].accuracy}% precisión</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Primer lugar */}
-                {leaderboard[0] && (
-                  <div className="text-center">
-                    <div className="mb-3 ring-4 ring-yellow-400 rounded-full inline-block">
-                      <PlayerAvatar avatar={leaderboard[0].avatar} size="xl" />
-                    </div>
-                    <div className="bg-gradient-to-b from-yellow-100 to-yellow-200 rounded-lg px-6 py-8">
-                      <Crown className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                      <div className="text-3xl font-bold text-yellow-600 mb-1">1°</div>
-                      <div className="font-bold text-gray-800">{leaderboard[0].name}</div>
-                      <div className="text-xl text-yellow-700">{leaderboard[0].finalScore} pts</div>
-                      <div className="text-sm text-yellow-600">{leaderboard[0].accuracy}% precisión</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tercer lugar */}
-                {leaderboard[2] && (
-                  <div className="text-center">
-                    <div className="mb-3">
-                      <PlayerAvatar avatar={leaderboard[2].avatar} size="lg" />
-                    </div>
-                    <div className="bg-orange-100 rounded-lg px-4 py-6">
-                      <div className="text-2xl font-bold text-orange-600 mb-1">3°</div>
-                      <div className="font-semibold text-gray-800">{leaderboard[2].name}</div>
-                      <div className="text-lg text-orange-600">{leaderboard[2].finalScore} pts</div>
-                      <div className="text-sm text-orange-500">{leaderboard[2].accuracy}% precisión</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Tu posición */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-center">
-                <p className="text-blue-800 font-semibold">
-                  Tu posición: #{currentPlayerRank} de {leaderboard.length} jugadores
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Tabla completa */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="p-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-              <h3 className="text-xl font-bold">Clasificación Final</h3>
-              <p className="text-purple-100">Todos los participantes</p>
-            </div>
-
-            <div className="p-6 space-y-3">
-              {leaderboard.map((p, index) => {
-                const isCurrentPlayer = p.id === player.id
-                return (
-                  <div
-                    key={p.id}
-                    className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
-                      isCurrentPlayer 
-                        ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-200' 
-                        : index < 3 
-                        ? 'border-yellow-200 bg-yellow-50'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                        index === 0 ? 'bg-yellow-500 text-white' :
-                        index === 1 ? 'bg-gray-400 text-white' :
-                        index === 2 ? 'bg-orange-500 text-white' :
-                        'bg-gray-200 text-gray-700'
-                      }`}>
-                        {p.rank}
-                      </div>
-                      <PlayerAvatar avatar={p.avatar} size="md" />
-                    </div>
-                    
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-800">
-                        {p.name}
-                        {isCurrentPlayer && (
-                          <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
-                            Tú
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {p.correctAnswers}/{p.totalQuestions} correctas ({p.accuracy}%)
-                      </p>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-800">
-                        {p.finalScore}
-                      </div>
-                      <div className="text-xs text-gray-500">puntos</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Acciones finales */}
-          <div className="mt-8 flex gap-4 justify-center">
-            <button
-              onClick={onBack}
-              className="btn-dominican-primary px-8 py-3"
+      <div className="w-full">
+        <p className="flex items-center justify-center gap-2 font-bold text-dominican-blue mb-4">
+          <Users className="w-5 h-5" />
+          {players.length} {players.length === 1 ? 'jugador' : 'jugadores'} en la sala
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          {players.map(p => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-2 rounded-full pl-1.5 pr-4 py-1.5 font-bold shadow animate-pop-in ${
+                p.id === player.id ? 'bg-dominican-blue text-white' : 'bg-white'
+              }`}
             >
-              Volver al Inicio
-            </button>
-          </div>
+              <PlayerAvatar avatar={p.avatar} size="sm" />
+              <span className="max-w-[10rem] truncate">{p.name}</span>
+              {p.is_host && <Crown className="w-4 h-4 text-ambar" />}
+            </div>
+          ))}
         </div>
+      </div>
+
+      <div className="mt-auto w-full max-w-md text-center">
+        {player.is_host ? (
+          <>
+            <button
+              onClick={handleStart}
+              disabled={busy || players.length < 2 || !game}
+              className="w-full flex items-center justify-center gap-2 bg-dominican-red hover:bg-dominican-red-light text-white font-display text-2xl py-4 rounded-2xl shadow-[0_6px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_2px_0_#A50E1E] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play className="w-6 h-6" />
+              {busy ? 'Arrancando…' : '¡Arrancar el juego!'}
+            </button>
+            {players.length < 2 && (
+              <p className="text-gray-600 font-semibold text-sm mt-4">Necesitas al menos 2 jugadores para arrancar</p>
+            )}
+          </>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-lg px-5 py-4">
+            <p className="font-display text-2xl text-dominican-blue">¡Ya estás dentro!</p>
+            <p className="text-gray-600 font-semibold text-sm">Espera a que el anfitrión arranque el juego…</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderIntro = () => (
+    <div className="flex-1 flex flex-col items-center justify-center gap-7 text-center">
+      <span className="bg-dominican-blue text-white rounded-full px-5 py-2 font-display text-lg">
+        Pregunta {questionIndex + 1} de {questions.length}
+      </span>
+      <h2
+        key={questionId}
+        className="bg-white text-dominican-blue-dark rounded-2xl shadow-xl border-t-8 border-dominican-red px-6 py-8 text-2xl sm:text-4xl font-black w-full animate-pop-in"
+      >
+        {question?.text}
+      </h2>
+      <div className="w-full max-w-xl h-3 bg-dominican-blue/15 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-dominican-red rounded-full transition-[width] duration-200 ease-linear"
+          style={{ width: `${Math.max(0, Math.min(100, ((startAt - serverNow) / 4000) * 100))}%` }}
+        />
+      </div>
+      <p className="font-display text-2xl text-dominican-red">¡Ponte pila!</p>
+    </div>
+  )
+
+  const renderQuestion = () => (
+    <div className="flex-1 flex flex-col gap-4">
+      <h2 className="bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center">
+        {question?.text}
+      </h2>
+
+      {question?.image_url && (
+        <img src={question.image_url} alt="" className="max-h-56 mx-auto rounded-2xl shadow-lg" />
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <div
+          className={`w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg ${
+            timeLeft <= 5 ? 'bg-dominican-red animate-pulse' : 'bg-dominican-blue'
+          }`}
+        >
+          <span className="font-display text-3xl sm:text-4xl leading-none tabular-nums">{timeLeft}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide">seg</span>
+        </div>
+        {selectedAnswer !== null && (
+          <p className="font-display text-xl text-dominican-blue text-center animate-pop-in">
+            ¡Respuesta enviada!
+            <span className="block font-sans text-sm font-semibold text-gray-600">Aguanta, faltan los demás…</span>
+          </p>
+        )}
+        <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl bg-white shadow-lg flex flex-col items-center justify-center text-dominican-blue">
+          <span className="font-display text-3xl sm:text-4xl leading-none tabular-nums">{answers.length}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide">resp.</span>
+        </div>
+      </div>
+
+      <div className="h-2.5 bg-dominican-blue/15 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-[width] duration-200 ease-linear ${
+            timeLeft <= 5 ? 'bg-dominican-red' : 'bg-dominican-blue'
+          }`}
+          style={{ width: `${Math.max(0, Math.min(100, ((startAt + limitMs - serverNow) / limitMs) * 100))}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 auto-rows-fr gap-3 flex-1 max-h-[30rem] mt-auto">
+        {question?.options.slice(0, 4).map((option, index) => (
+          <button
+            key={index}
+            onClick={() => handleAnswer(index)}
+            disabled={selectedAnswer !== null}
+            className={`${ANSWER_STYLES[index].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all active:scale-95 ${
+              selectedAnswer === null
+                ? 'hover:brightness-110 hover:-translate-y-0.5'
+                : selectedAnswer === index
+                  ? 'ring-4 ring-dominican-blue'
+                  : 'opacity-60 saturate-50'
+            }`}
+          >
+            <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-12 h-12 sm:w-14 sm:h-14" />
+            <span className="break-words">{option}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const renderReveal = () => {
+    const counts = [0, 1, 2, 3].map(index => answers.filter(a => a.answer === index).length)
+    const maxCount = Math.max(1, ...counts)
+    const isLastQuestion = questionIndex >= questions.length - 1
+
+    return (
+      <div className="flex-1 flex flex-col gap-4">
+        <div
+          className={`rounded-2xl px-5 py-4 text-center text-white shadow-xl animate-pop-in ${
+            !mySavedAnswer ? 'bg-slate-600' : mySavedAnswer.is_correct ? 'bg-palma' : 'bg-dominican-red'
+          }`}
+        >
+          <p className="font-display text-3xl sm:text-4xl">
+            {!mySavedAnswer ? '¡Se te fue la guagua!' : mySavedAnswer.is_correct ? '¡La botaste!' : '¡Te ponchaste!'}
+          </p>
+          <p className="font-bold text-white/95">
+            {!mySavedAnswer
+              ? 'No respondiste a tiempo'
+              : mySavedAnswer.is_correct
+                ? `Correcto · +${mySavedAnswer.points_earned ?? 0} puntos`
+                : 'Incorrecto · 0 puntos'}
+          </p>
+          <p className="text-sm font-semibold text-white/85">
+            Vas en el puesto {myPosition + 1} con {myScore} puntos
+          </p>
+        </div>
+
+        <h2 className="text-center text-lg sm:text-2xl font-black text-dominican-blue-dark">{question?.text}</h2>
+
+        <div className="grid grid-cols-4 gap-3 items-end h-32 px-2">
+          {counts.map((count, index) => (
+            <div key={index} className="flex flex-col items-center justify-end h-full gap-1">
+              <span className="flex items-center gap-1 font-display text-xl text-dominican-blue-dark tabular-nums">
+                {count}
+                {index === question?.correct_answer && <Check className="w-5 h-5 text-palma" strokeWidth={4} />}
+              </span>
+              <div
+                className={`${ANSWER_STYLES[index].bg} tablita w-full rounded-t-xl transition-[height] duration-500 ${
+                  index === question?.correct_answer ? '' : 'opacity-40'
+                }`}
+                style={{ height: `${Math.max(6, (count / maxCount) * 100)}%` }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {question?.options.slice(0, 4).map((option, index) => {
+            const isCorrect = index === question.correct_answer
+            return (
+              <div
+                key={index}
+                className={`flex items-center gap-2 sm:gap-3 rounded-xl border-4 px-2.5 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-xl font-bold shadow ${
+                  isCorrect
+                    ? `${ANSWER_STYLES[index].bg} tablita border-white text-white`
+                    : 'bg-white border-white text-gray-500'
+                } ${selectedAnswer === index ? 'ring-4 ring-dominican-blue' : ''}`}
+              >
+                <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-7 h-7 sm:w-10 sm:h-10" />
+                <span className="flex-1 break-words">{option}</span>
+                {isCorrect
+                  ? <Check className="w-6 h-6 shrink-0" strokeWidth={4} />
+                  : <X className="w-6 h-6 shrink-0 text-gray-400" strokeWidth={4} />}
+              </div>
+            )
+          })}
+        </div>
+
+        <Scoreboard ranked={ranked} meId={player.id} limit={5} />
+
+        {player.is_host ? (
+          <button
+            onClick={handleNext}
+            disabled={busy}
+            className="sticky bottom-4 self-end flex items-center gap-2 bg-dominican-blue hover:bg-dominican-blue-light text-white font-display text-xl px-6 py-3 rounded-2xl shadow-[0_5px_0_#001A3A] transition-all active:translate-y-1 active:shadow-[0_1px_0_#001A3A] disabled:opacity-50"
+          >
+            {isLastQuestion ? 'Ver el podio' : 'Siguiente'}
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        ) : (
+          <p className="text-center text-gray-600 font-semibold">Esperando al anfitrión…</p>
+        )}
       </div>
     )
   }
 
-  // Renderizado por defecto para debugging
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Debug Info</h2>
-        <div className="space-y-2 text-sm">
-          <p><strong>Room State:</strong> {roomState}</p>
-          <p><strong>Game State:</strong> {gameState}</p>
-          <p><strong>Current Game:</strong> {currentGame?.title || 'No game selected'}</p>
-          <p><strong>Has Questions:</strong> {currentGame?.questions?.length || 0} questions</p>
-          <p><strong>Current Question Index:</strong> {currentQuestionIndex}</p>
-          <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
-          {error && <p className="text-red-600"><strong>Error:</strong> {error}</p>}
+  const renderPodium = () => {
+    // orden visual: segundo, primero, tercero
+    const steps = [
+      { position: 1, height: 'h-28', color: 'bg-slate-300', avatarSize: 'lg' as const },
+      { position: 0, height: 'h-40', color: 'bg-yellow-400', avatarSize: 'xl' as const },
+      { position: 2, height: 'h-20', color: 'bg-amber-600', avatarSize: 'lg' as const }
+    ]
+
+    return (
+      <div className="flex-1 flex flex-col items-center gap-6">
+        <div className="text-center">
+          <h2 className="flex items-center justify-center gap-3 font-display text-4xl sm:text-6xl text-dominican-blue">
+            <Trophy className="w-9 h-9 sm:w-12 sm:h-12 text-ambar" />
+            ¡Los duros!
+          </h2>
+          <p className="font-semibold text-gray-600">Los que más saben de esta partida</p>
         </div>
-        <button onClick={onBack} className="btn-dominican-primary mt-4 w-full">
-          Volver al Inicio
+
+        <div className="flex items-end justify-center gap-2 sm:gap-5 w-full max-w-2xl">
+          {steps.map(({ position, height, color, avatarSize }) => {
+            const p = ranked[position]
+            if (!p) return <div key={position} className="flex-1" />
+            return (
+              <div key={p.id} className="flex-1 flex flex-col items-center min-w-0 animate-pop-in">
+                {position === 0 && <Crown className="w-8 h-8 text-ambar mb-1" />}
+                <PlayerAvatar avatar={p.avatar} size={avatarSize} />
+                <p className="font-bold text-dominican-blue-dark mt-2 max-w-full truncate">{p.name}</p>
+                <p className="font-display text-lg text-dominican-red tabular-nums mb-2">{p.score ?? 0}</p>
+                <div className={`${color} ${height} w-full rounded-t-2xl flex items-start justify-center pt-2 font-display text-5xl text-dominican-blue-dark shadow-lg`}>
+                  {position + 1}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <p className="bg-dominican-blue text-white rounded-full px-5 py-2 font-bold">
+          Quedaste en el puesto {myPosition + 1} con {myScore} puntos
+        </p>
+
+        {ranked.length > 3 && (
+          <div className="w-full max-w-md">
+            <Scoreboard ranked={ranked} meId={player.id} limit={10} />
+          </div>
+        )}
+
+        <button
+          onClick={onBack}
+          className="bg-dominican-red hover:bg-dominican-red-light text-white font-display text-xl px-8 py-3 rounded-2xl shadow-[0_5px_0_#A50E1E] transition-all active:translate-y-1 active:shadow-[0_1px_0_#A50E1E]"
+        >
+          Salir
         </button>
       </div>
+    )
+  }
+
+  const gameReady = phase === 'lobby' || phase === 'podium' || !!question
+
+  return (
+    <div className="min-h-screen flex flex-col fondo-caribe text-dominican-blue-dark">
+      <header className="bg-dominican-blue text-white shadow-md">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 max-w-4xl mx-auto">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm font-bold text-white/85 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Salir
+          </button>
+          <div className="text-center min-w-0">
+            <p className="font-display text-lg leading-tight truncate">{room.name}</p>
+            {(phase === 'question' || phase === 'reveal') && (
+              <p className="text-xs font-semibold text-white/80">
+                Pregunta {questionIndex + 1} de {questions.length}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleMute}
+              className="p-1.5 rounded-full bg-white/15 hover:bg-white/25"
+              title={isMuted ? 'Activar sonido' : 'Silenciar'}
+              aria-label={isMuted ? 'Activar sonido' : 'Silenciar'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+            <div className="flex items-center gap-1.5 text-sm font-bold bg-white/15 rounded-full px-3 py-1">
+              <Users className="w-4 h-4" />
+              {players.length}
+            </div>
+          </div>
+        </div>
+        {/* franja de la bandera */}
+        <div className="h-1 bg-white" />
+        <div className="h-1.5 bg-dominican-red" />
+      </header>
+
+      <main className="flex-1 flex flex-col w-full max-w-4xl mx-auto px-4 pt-4 pb-6">
+        {error && (
+          <div className="mb-3 px-4 py-3 bg-dominican-red text-white rounded-xl font-semibold text-sm">
+            {error}
+          </div>
+        )}
+
+        {!gameReady ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <div className="loading-spinner"></div>
+            <p className="font-bold text-dominican-blue">Cargando el juego…</p>
+          </div>
+        ) : (
+          <>
+            {phase === 'lobby' && renderLobby()}
+            {phase === 'intro' && renderIntro()}
+            {phase === 'question' && renderQuestion()}
+            {phase === 'reveal' && renderReveal()}
+            {phase === 'podium' && renderPodium()}
+          </>
+        )}
+      </main>
     </div>
   )
 }

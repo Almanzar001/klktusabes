@@ -661,6 +661,87 @@ export const roomHelpers = {
     return { data, error }
   },
 
+  // Obtener el estado actual de la sala
+  getRoom: async (roomId: string) => {
+    const { data, error } = await db
+      .from('rooms')
+      .select('*')
+      .eq('id', roomId)
+      .maybeSingle()
+    return { data, error }
+  },
+
+  // Sesión de juego de la sala junto con el juego y sus preguntas en orden
+  getRoomGame: async (roomId: string) => {
+    const { data: session, error: sessionError } = await db
+      .from('game_sessions')
+      .select('id, game_id')
+      .eq('room_id', roomId)
+      .maybeSingle()
+
+    if (sessionError || !session) {
+      return { data: null, error: sessionError }
+    }
+
+    const { data: game, error: gameError } = await gameHelpers.getGameWithQuestions(session.game_id)
+
+    if (gameError || !game) {
+      return { data: null, error: gameError }
+    }
+
+    return { data: { sessionId: session.id as string, game }, error: null }
+  },
+
+  // Control de la partida. La fila de rooms es la única fuente de verdad y cada
+  // cambio va condicionado al estado anterior: repetirlo, o lanzarlo desde dos
+  // dispositivos a la vez, no avanza la partida dos veces.
+
+  // Sala de espera → primera pregunta
+  startGame: async (roomId: string) => {
+    const { data, error } = await db
+      .from('rooms')
+      .update({ status: 'playing', current_question_index: 0 })
+      .eq('id', roomId)
+      .eq('status', 'waiting')
+      .select()
+    return { data: data?.[0] ?? null, error }
+  },
+
+  // Pregunta abierta → respuesta correcta y marcador
+  revealAnswer: async (roomId: string, questionIndex: number) => {
+    const { data, error } = await db
+      .from('rooms')
+      .update({ status: 'show_results' })
+      .eq('id', roomId)
+      .eq('status', 'playing')
+      .eq('current_question_index', questionIndex)
+      .select()
+    return { data: data?.[0] ?? null, error }
+  },
+
+  // Marcador → siguiente pregunta
+  goToNextQuestion: async (roomId: string, questionIndex: number) => {
+    const { data, error } = await db
+      .from('rooms')
+      .update({ status: 'playing', current_question_index: questionIndex + 1 })
+      .eq('id', roomId)
+      .eq('status', 'show_results')
+      .eq('current_question_index', questionIndex)
+      .select()
+    return { data: data?.[0] ?? null, error }
+  },
+
+  // Marcador de la última pregunta → podio
+  finishGame: async (roomId: string) => {
+    const { data, error } = await db
+      .from('rooms')
+      .update({ status: 'finished' })
+      .eq('id', roomId)
+      .eq('status', 'show_results')
+      .select()
+    return { data: data?.[0] ?? null, error }
+  },
+
   // Actualizar sala con estado y juego
   updateRoomWithGame: async (roomId: string, status: string, game: any) => {
     console.log('🎯 Updating room with game:', { roomId, status, gameTitle: game?.title, gameQuestions: game?.questions?.length })
@@ -924,6 +1005,46 @@ export const sessionHelpers = {
     return { data, error }
   },
 
+  // Enviar la respuesta de un jugador. Solo viaja la opción elegida: el servidor
+  // mide el tiempo, decide si es correcta y calcula los puntos.
+  submitAnswer: async (sessionId: string, playerId: string, questionId: string, answer: number) => {
+    const { data, error } = await db
+      .from('player_answers')
+      .insert([
+        {
+          session_id: sessionId,
+          player_id: playerId,
+          question_id: questionId,
+          answer,
+          // valores provisionales; el trigger score_player_answer los sobrescribe
+          time_to_answer: 1,
+          is_correct: false
+        }
+      ])
+      .select()
+      .single()
+    return { data, error }
+  },
+
+  // Respuestas recibidas para una pregunta
+  getQuestionAnswers: async (sessionId: string, questionId: string) => {
+    const { data, error } = await db
+      .from('player_answers')
+      .select('player_id, answer, is_correct, points_earned, time_to_answer')
+      .eq('session_id', sessionId)
+      .eq('question_id', questionId)
+    return { data, error }
+  },
+
+  // Diferencia entre el reloj del servidor y el de este dispositivo (ms)
+  getServerTimeOffset: async () => {
+    const sentAt = Date.now()
+    const { data, error } = await db.rpc('server_now')
+    const receivedAt = Date.now()
+    if (error || !data) return 0
+    return new Date(data as string).getTime() - (sentAt + receivedAt) / 2
+  },
+
   // Avanzar a siguiente pregunta
   nextQuestion: async (sessionId: string, currentQuestion: number) => {
     const { data, error } = await db
@@ -940,14 +1061,11 @@ export const sessionHelpers = {
 //
 // En InsForge los cambios de tablas llegan por canales: los triggers de la base
 // de datos publican en `room:<id>` (players, rooms, game_sessions) y en
-// `session:<id>` (player_answers) con la forma { eventType, new, old }. Los
-// clientes publican la sincronización del juego en el mismo canal de la sala.
+// `session:<id>` (player_answers) con la forma { eventType, new, old }. El
+// estado de la partida viaja en la fila de rooms (evento room_changed).
 export interface RealtimeSubscription {
   unsubscribe: () => void
 }
-
-// Identifica esta pestaña para descartar el eco de sus propios mensajes
-const clientId = Math.random().toString(36).slice(2)
 
 // Varias suscripciones comparten canal; solo se abandona cuando no queda ninguna
 const channelUsers = new Map<string, number>()
@@ -1015,25 +1133,13 @@ export const realtimeHelpers = {
     return listen(roomChannel(roomId), 'game_session_changed', callback)
   },
 
-  // Suscribirse a mensajes de sincronización del juego enviados por otros jugadores
-  subscribeToGameSync: (roomId: string, event: string, callback: (data: any) => void) => {
-    return listen(roomChannel(roomId), event, (message) => {
-      if (message.client_id === clientId) return
-      callback(message)
-    })
-  },
-
-  // Enviar un mensaje de sincronización del juego a los demás jugadores de la sala
-  sendGameSync: async (roomId: string, event: string, payload: Record<string, unknown>) => {
-    const channel = roomChannel(roomId)
-
-    // Solo se puede publicar en un canal al que ya se está suscrito
-    const response = await insforge.realtime.subscribe(channel)
-    if (!response.ok) {
-      throw new Error(response.error.message)
+  // Avisar cuando la conexión en tiempo real se (re)establece, para volver a
+  // leer el estado: los eventos emitidos durante un corte no se reenvían.
+  onReconnect: (callback: () => void): RealtimeSubscription => {
+    insforge.realtime.on('connect', callback)
+    return {
+      unsubscribe: () => insforge.realtime.off('connect', callback)
     }
-
-    await insforge.realtime.publish(channel, event, { ...payload, client_id: clientId })
   },
 
   // Desuscribirse de un canal

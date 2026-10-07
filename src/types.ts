@@ -44,6 +44,7 @@ export interface Room {
   players?: Player[]
   current_game_data?: Game // Juego completo almacenado en la sala
   current_question_index?: number // Índice de pregunta actual para sincronización
+  question_started_at?: string | null // Hora del servidor en que se abre la pregunta actual
 }
 
 export interface Player {
