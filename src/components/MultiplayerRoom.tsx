@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Presentation, SkipForward, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
 import { roomHelpers, realtimeHelpers, sessionHelpers } from '../insforge'
-import { Room, Player, Game } from '../types'
+import { Room, Player, Game, shuffledOrder } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
 import PlayerAvatar from './PlayerAvatar'
 import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
@@ -126,6 +126,15 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   const timeLeft = Math.max(0, Math.ceil((startAt + limitMs - serverNow) / 1000))
   const mySavedAnswer = playerId ? answers.find(a => a.player_id === playerId) : undefined
   const selectedAnswer = myAnswer && myAnswer.questionId === questionId ? myAnswer.answer : mySavedAnswer?.answer ?? null
+
+  // Orden en que se muestran las respuestas en este dispositivo: distinto para
+  // cada jugador y en cada partida, y fijo mientras dura la pregunta. El color y
+  // el símbolo van con la posición; al servidor se envía el índice original.
+  const optionCount = Math.min(question?.options.length ?? 0, 4)
+  const answerOrder = useMemo(
+    () => shuffledOrder(optionCount, `${sessionId}:${playerId ?? 'director'}:${questionId}`),
+    [optionCount, sessionId, playerId, questionId]
+  )
 
   const ranked = useMemo(
     () => [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.joined_at.localeCompare(b.joined_at)),
@@ -552,23 +561,23 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
       </div>
 
       <div className="grid grid-cols-2 auto-rows-fr gap-3 flex-1 max-h-[30rem] mt-auto">
-        {question?.options.slice(0, 4).map((option, index) => (
+        {answerOrder.map((optionIndex, position) => (
           <button
-            key={index}
-            onClick={() => handleAnswer(index)}
+            key={optionIndex}
+            onClick={() => handleAnswer(optionIndex)}
             disabled={!player || selectedAnswer !== null}
-            className={`${ANSWER_STYLES[index].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all ${
+            className={`${ANSWER_STYLES[position].bg} tablita flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-4 rounded-2xl border-4 border-white px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-white text-base sm:text-2xl font-bold shadow-lg transition-all ${
               !player
                 ? ''
                 : selectedAnswer === null
                 ? 'hover:brightness-110 hover:-translate-y-0.5 active:scale-95'
-                : selectedAnswer === index
+                : selectedAnswer === optionIndex
                   ? 'ring-4 ring-dominican-blue'
                   : 'opacity-60 saturate-50'
             }`}
           >
-            <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-12 h-12 sm:w-14 sm:h-14" />
-            <span className="break-words">{option}</span>
+            <AnswerBadge icon={ANSWER_STYLES[position].icon} color={ANSWER_STYLES[position].text} className="w-12 h-12 sm:w-14 sm:h-14" />
+            <span className="break-words">{question?.options[optionIndex]}</span>
           </button>
         ))}
       </div>
@@ -617,36 +626,36 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         <h2 className="text-center text-lg sm:text-2xl font-black text-dominican-blue-dark">{question?.text}</h2>
 
         <div className="grid grid-cols-4 gap-3 items-end h-32 px-2">
-          {counts.map((count, index) => (
-            <div key={index} className="flex flex-col items-center justify-end h-full gap-1">
+          {answerOrder.map((optionIndex, position) => (
+            <div key={optionIndex} className="flex flex-col items-center justify-end h-full gap-1">
               <span className="flex items-center gap-1 font-display text-xl text-dominican-blue-dark tabular-nums">
-                {count}
-                {index === question?.correct_answer && <Check className="w-5 h-5 text-palma" strokeWidth={4} />}
+                {counts[optionIndex]}
+                {optionIndex === question?.correct_answer && <Check className="w-5 h-5 text-palma" strokeWidth={4} />}
               </span>
               <div
-                className={`${ANSWER_STYLES[index].bg} tablita w-full rounded-t-xl transition-[height] duration-500 ${
-                  index === question?.correct_answer ? '' : 'opacity-40'
+                className={`${ANSWER_STYLES[position].bg} tablita w-full rounded-t-xl transition-[height] duration-500 ${
+                  optionIndex === question?.correct_answer ? '' : 'opacity-40'
                 }`}
-                style={{ height: `${Math.max(6, (count / maxCount) * 100)}%` }}
+                style={{ height: `${Math.max(6, (counts[optionIndex] / maxCount) * 100)}%` }}
               />
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {question?.options.slice(0, 4).map((option, index) => {
-            const isCorrect = index === question.correct_answer
+          {answerOrder.map((optionIndex, position) => {
+            const isCorrect = optionIndex === question?.correct_answer
             return (
               <div
-                key={index}
+                key={optionIndex}
                 className={`flex items-center gap-2 sm:gap-3 rounded-xl border-4 px-2.5 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-xl font-bold shadow ${
                   isCorrect
-                    ? `${ANSWER_STYLES[index].bg} tablita border-white text-white`
+                    ? `${ANSWER_STYLES[position].bg} tablita border-white text-white`
                     : 'bg-white border-white text-gray-500'
-                } ${selectedAnswer === index ? 'ring-4 ring-dominican-blue' : ''}`}
+                } ${selectedAnswer === optionIndex ? 'ring-4 ring-dominican-blue' : ''}`}
               >
-                <AnswerBadge icon={ANSWER_STYLES[index].icon} color={ANSWER_STYLES[index].text} className="w-7 h-7 sm:w-10 sm:h-10" />
-                <span className="flex-1 break-words">{option}</span>
+                <AnswerBadge icon={ANSWER_STYLES[position].icon} color={ANSWER_STYLES[position].text} className="w-7 h-7 sm:w-10 sm:h-10" />
+                <span className="flex-1 break-words">{question?.options[optionIndex]}</span>
                 {isCorrect
                   ? <Check className="w-6 h-6 shrink-0" strokeWidth={4} />
                   : <X className="w-6 h-6 shrink-0 text-gray-400" strokeWidth={4} />}
