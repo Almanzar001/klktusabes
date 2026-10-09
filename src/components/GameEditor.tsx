@@ -24,11 +24,13 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
   const [showNewGameForm, setShowNewGameForm] = useState(false)
   const [newGameTitle, setNewGameTitle] = useState('')
   const [newGameDescription, setNewGameDescription] = useState('')
+  const [newGameReadAloud, setNewGameReadAloud] = useState(false)
 
   // Estados para editar juego
   const [showEditGameForm, setShowEditGameForm] = useState(false)
   const [editGameTitle, setEditGameTitle] = useState('')
   const [editGameDescription, setEditGameDescription] = useState('')
+  const [editGameReadAloud, setEditGameReadAloud] = useState(false)
   const [editingGame, setEditingGame] = useState<Game | null>(null)
 
   // Cargar juegos al montar el componente
@@ -66,7 +68,8 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       const { data, error } = await gameHelpers.createGame(
         newGameTitle.trim(),
         newGameDescription.trim(),
-        user.id
+        user.id,
+        newGameReadAloud
       )
 
       if (error) {
@@ -81,6 +84,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       // Limpiar formulario
       setNewGameTitle('')
       setNewGameDescription('')
+      setNewGameReadAloud(false)
       setShowNewGameForm(false)
       
       // Seleccionar el juego recién creado
@@ -156,6 +160,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
     setEditingGame(game)
     setEditGameTitle(game.title)
     setEditGameDescription(game.description || '')
+    setEditGameReadAloud(!!game.read_aloud)
     setShowEditGameForm(true)
   }
 
@@ -168,7 +173,8 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
 
       const { error } = await gameHelpers.updateGame(editingGame.id, {
         title: editGameTitle.trim(),
-        description: editGameDescription.trim()
+        description: editGameDescription.trim(),
+        read_aloud: editGameReadAloud
       })
 
       if (error) {
@@ -491,6 +497,21 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                   maxLength={300}
                 />
               </div>
+
+              <label className="flex items-start gap-3 p-3 bg-arena border border-dominican-blue/20 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newGameReadAloud}
+                  onChange={(e) => setNewGameReadAloud(e.target.checked)}
+                  className="mt-1 w-5 h-5 accent-dominican-blue"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-gray-700">Leer las preguntas en voz alta</span>
+                  <span className="block text-xs text-gray-500">
+                    Para niños que aún no leen: la app lee cada pregunta y sus respuestas.
+                  </span>
+                </span>
+              </label>
             </div>
             
             <div className="flex items-center gap-3 mt-6">
@@ -506,6 +527,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                   setShowNewGameForm(false)
                   setNewGameTitle('')
                   setNewGameDescription('')
+                  setNewGameReadAloud(false)
                 }}
                 className="btn-dominican-outline flex-1"
               >
@@ -552,6 +574,21 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
                   maxLength={300}
                 />
               </div>
+
+              <label className="flex items-start gap-3 p-3 bg-arena border border-dominican-blue/20 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editGameReadAloud}
+                  onChange={(e) => setEditGameReadAloud(e.target.checked)}
+                  className="mt-1 w-5 h-5 accent-dominican-blue"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-gray-700">Leer las preguntas en voz alta</span>
+                  <span className="block text-xs text-gray-500">
+                    Para niños que aún no leen: la app lee cada pregunta y sus respuestas.
+                  </span>
+                </span>
+              </label>
             </div>
             
             <div className="flex items-center gap-3 mt-6">

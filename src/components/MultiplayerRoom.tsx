@@ -3,10 +3,12 @@ import { ArrowLeft, Check, ChevronRight, Copy, Crown, Play, Presentation, SkipFo
 import { roomHelpers, realtimeHelpers, sessionHelpers } from '../insforge'
 import { Room, Player, Game, answersAreImagesOnly, shuffledOrder } from '../types'
 import { useGameSounds } from '../hooks/useGameSounds'
+import { useSpeech, SpeechSegment } from '../hooks/useSpeech'
 import PlayerAvatar from './PlayerAvatar'
 import AnswerBadge, { ANSWER_STYLES } from './AnswerBadge'
 import AnswerTile, { AnswerThumbnail, answerGridClass } from './AnswerTile'
 import QuestionMedia, { preloadQuestionImages } from './QuestionMedia'
+import SpeakButton from './SpeakButton'
 
 interface MultiplayerRoomProps {
   room: Room
@@ -88,6 +90,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
     initializeAudio,
     isAudioEnabled
   } = useGameSounds({ playsAloud: !player || player.is_host })
+  const { canSpeak, speaking, currentId: spokenId, speak, stop: stopSpeaking } = useSpeech()
 
   const roomId = initialRoom.id
   // Sin jugador propio se está dirigiendo la partida: se controla el ritmo pero no se responde
@@ -132,11 +135,52 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
   // Orden en que se muestran las respuestas en este dispositivo: distinto para
   // cada jugador y en cada partida, y fijo mientras dura la pregunta. El color y
   // el símbolo van con la posición; al servidor se envía el índice original.
+  // En las trivias que se leen en voz alta el orden es el mismo para todos: así
+  // la voz y el resaltado de la pantalla grande les sirven a quienes aún no leen.
+  const readAloud = !!game?.read_aloud && canSpeak
   const optionCount = Math.min(question?.options.length ?? 0, 4)
   const answerOrder = useMemo(
-    () => shuffledOrder(optionCount, `${sessionId}:${playerId ?? 'director'}:${questionId}`),
-    [optionCount, sessionId, playerId, questionId]
+    () => shuffledOrder(optionCount, readAloud ? `${sessionId}:${questionId}` : `${sessionId}:${playerId ?? 'director'}:${questionId}`),
+    [optionCount, sessionId, playerId, questionId, readAloud]
   )
+
+  // --- Lectura en voz alta ---
+  const questionSpeech = (): SpeechSegment[] => (question ? [{ text: question.text, id: 'pregunta' }] : [])
+  const answersSpeech = (): SpeechSegment[] =>
+    answerOrder.map(optionIndex => ({ text: question?.options[optionIndex] ?? '', id: optionIndex }))
+
+  // El dispositivo que lleva el sonido de la partida lee solo: la pregunta durante
+  // la cuenta atrás y las respuestas al abrirse. Los demás tienen el botón.
+  const readsAlone = readAloud && isHost
+  const introReadFor = useRef<string | null>(null)
+  const [readQuestionId, setReadQuestionId] = useState<string | null>(null) // pregunta que ya se terminó de leer
+  useEffect(() => {
+    if (!readsAlone || !questionId || isMuted) return
+
+    if (phase === 'intro') {
+      introReadFor.current = questionId
+      speak(questionSpeech())
+    } else if (phase === 'question') {
+      speak(introReadFor.current === questionId ? answersSpeech() : [...questionSpeech(), ...answersSpeech()], {
+        append: true,
+        onDone: () => setReadQuestionId(questionId)
+      })
+    } else {
+      stopSpeaking()
+    }
+  }, [phase, questionId, readsAlone])
+
+  useEffect(() => {
+    if (isMuted) stopSpeaking()
+  }, [isMuted, stopSpeaking])
+
+  // El sonido de la pregunta espera a que termine la voz
+  const audioWaits = readsAlone && !isMuted && readQuestionId !== questionId
+
+  const handleSpeak = () => {
+    if (speaking) stopSpeaking()
+    else speak([...questionSpeech(), ...answersSpeech()])
+  }
 
   const ranked = useMemo(
     () => [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.joined_at.localeCompare(b.joined_at)),
@@ -525,9 +569,12 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
 
   const renderQuestion = () => (
     <div className="flex-1 flex flex-col gap-4">
-      <h2 className="bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center">
-        {question?.text}
-      </h2>
+      <div className="relative">
+        <h2 className={`bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center ${readAloud ? 'pr-14' : ''}`}>
+          {question?.text}
+        </h2>
+        {readAloud && <SpeakButton speaking={speaking} onClick={handleSpeak} className="absolute -top-1 -right-2" />}
+      </div>
 
       <QuestionMedia
         key={questionId}
@@ -536,6 +583,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
         autoPlay={!player || player.is_host}
         muted={isMuted}
         largeImage={imageAnswers}
+        hold={audioWaits}
       />
 
       <div className="flex items-center justify-between gap-3">
@@ -586,6 +634,7 @@ const MultiplayerRoom: React.FC<MultiplayerRoomProps> = ({ room: initialRoom, pl
             imageUrl={question?.option_images?.[optionIndex]?.url}
             onClick={() => handleAnswer(optionIndex)}
             disabled={!player || selectedAnswer !== null}
+            speaking={spokenId === optionIndex}
             className={
               !player
                 ? ''

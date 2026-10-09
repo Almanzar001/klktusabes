@@ -10,6 +10,8 @@ interface AnswerTileProps {
   disabled?: boolean
   // Clases según el estado de la ficha: elegida, apagada, etc.
   className?: string
+  // La app está leyendo esta respuesta en voz alta: se resalta para que se sepa cuál es
+  speaking?: boolean
   // Marcas que van encima de la ficha
   children?: React.ReactNode
 }
@@ -24,7 +26,7 @@ export const answerGridClass = (imagesOnly: boolean) =>
 
 // Ficha de una respuesta durante la partida. Si la respuesta tiene imagen, la
 // muestra sobre blanco para que una figura se vea igual en cualquier color.
-const AnswerTile: React.FC<AnswerTileProps> = ({ position, text, imageUrl, onClick, disabled, className = '', children }) => {
+const AnswerTile: React.FC<AnswerTileProps> = ({ position, text, imageUrl, onClick, disabled, className = '', speaking = false, children }) => {
   const style = ANSWER_STYLES[position]
 
   return (
@@ -35,7 +37,7 @@ const AnswerTile: React.FC<AnswerTileProps> = ({ position, text, imageUrl, onCli
         imageUrl
           ? 'flex-col justify-center gap-1.5 p-2 text-center text-sm sm:text-xl'
           : 'flex-col sm:flex-row justify-center sm:justify-start gap-2 sm:gap-4 px-3 sm:px-5 py-4 min-h-[6rem] text-center sm:text-left text-base sm:text-2xl'
-      } ${className}`}
+      } ${speaking ? 'ring-8 ring-yellow-300 scale-[1.04] brightness-110 z-10' : ''} ${className}`}
     >
       {imageUrl ? (
         <>

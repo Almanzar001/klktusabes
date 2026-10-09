@@ -13,6 +13,8 @@ interface QuestionMediaProps {
   muted?: boolean
   // La imagen es lo principal de la pregunta (las respuestas son figuras): se muestra más grande
   largeImage?: boolean
+  // El sonido espera para arrancar solo (por ejemplo, mientras la app lee la pregunta en voz alta)
+  hold?: boolean
 }
 
 // Descarga por adelantado las imágenes de la pregunta y de sus respuestas,
@@ -25,24 +27,31 @@ export const preloadQuestionImages = (question?: Pick<Question, 'image_url' | 'o
 }
 
 // Imagen y sonido de una pregunta durante la partida
-const QuestionMedia: React.FC<QuestionMediaProps> = ({ imageUrl, audioUrl, autoPlay = false, muted = false, largeImage = false }) => {
+const QuestionMedia: React.FC<QuestionMediaProps> = ({ imageUrl, audioUrl, autoPlay = false, muted = false, largeImage = false, hold = false }) => {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [finished, setFinished] = useState(false)
   const [progress, setProgress] = useState(0)
   const [imageFailed, setImageFailed] = useState(false)
+  const autoStarted = useRef(false)
 
+  // Arranca solo una vez, al abrirse la pregunta o en cuanto deja de tener que
+  // esperar. Quitar el silencio después no debe arrancarlo.
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio) return
+    if (!audio || hold || autoStarted.current) return
 
+    autoStarted.current = true
     if (autoPlay && !muted) {
       // si el navegador no deja sonar sin un toque, queda el botón
       audio.play().catch(() => {})
     }
+  }, [audioUrl, hold])
+
+  useEffect(() => {
+    const audio = audioRef.current
     // un <audio> sigue sonando aunque salga de la pantalla
-    return () => audio.pause()
-    // solo al abrirse la pregunta: quitar el silencio después no debe arrancarlo
+    return () => audio?.pause()
   }, [audioUrl])
 
   useEffect(() => {

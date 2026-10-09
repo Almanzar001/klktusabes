@@ -7,6 +7,8 @@ import QRLeaderboard from './QRLeaderboard'
 import AnswerTile, { AnswerThumbnail, answerGridClass } from './AnswerTile'
 import QuestionMedia, { preloadQuestionImages } from './QuestionMedia'
 import { useGameSounds } from '../hooks/useGameSounds'
+import { useSpeech, SpeechSegment } from '../hooks/useSpeech'
+import SpeakButton from './SpeakButton'
 
 interface SinglePlayerGameProps {
   onBack: () => void
@@ -95,6 +97,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     initializeAudio,
     isAudioEnabled
   } = useGameSounds()
+  const { canSpeak, speaking, currentId: spokenId, speak, stop: stopSpeaking } = useSpeech()
 
   // Estados principales
   const [games, setGames] = useState<Game[]>([])
@@ -347,6 +350,48 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
     if (gameState === 'playing' && !questionAudioOpen) startMusic('countdown')
     else stopMusic()
   }, [gameState, questionAudioOpen, startMusic, stopMusic])
+
+  // --- Lectura en voz alta (trivias marcadas para leerse, pensadas para niños) ---
+  const readAloud = !!selectedGame?.read_aloud && canSpeak
+  const questionSpeech = (): SpeechSegment[] => (currentQuestion ? [{ text: currentQuestion.text, id: 'pregunta' }] : [])
+  const answersSpeech = (): SpeechSegment[] =>
+    (currentQuestion?.shuffledOptions ?? []).slice(0, 4).map((option, index) => ({ text: option, id: index }))
+
+  // La pregunta se lee durante la cuenta atrás y las respuestas al abrirse
+  const introReadFor = useRef<number | null>(null)
+  const [readIndex, setReadIndex] = useState<number | null>(null) // pregunta que ya se terminó de leer
+  useEffect(() => {
+    if (!readAloud) return
+    if (gameState !== 'playing' || showAnswer) {
+      stopSpeaking()
+      return
+    }
+    if (isMuted) return
+
+    if (showIntro) {
+      introReadFor.current = currentQuestionIndex
+      setReadIndex(null)
+      speak(questionSpeech())
+    } else {
+      const index = currentQuestionIndex
+      speak(introReadFor.current === index ? answersSpeech() : [...questionSpeech(), ...answersSpeech()], {
+        append: true,
+        onDone: () => setReadIndex(index)
+      })
+    }
+  }, [readAloud, gameState, currentQuestionIndex, showIntro, showAnswer])
+
+  useEffect(() => {
+    if (isMuted) stopSpeaking()
+  }, [isMuted, stopSpeaking])
+
+  // El sonido de la pregunta espera a que termine la voz
+  const audioWaits = readAloud && !isMuted && readIndex !== currentQuestionIndex
+
+  const handleSpeak = () => {
+    if (speaking) stopSpeaking()
+    else speak([...questionSpeech(), ...answersSpeech()])
+  }
 
   // Las imágenes se descargan durante la cuenta atrás para que ya estén al abrirse la pregunta
   const currentQuestionId = gameState === 'playing' ? currentQuestion?.id : undefined
@@ -648,9 +693,12 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                   </p>
                 </div>
               ) : (
-                <h2 className="bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center">
-                  {currentShuffledQuestion.text}
-                </h2>
+                <div className="relative">
+                  <h2 className={`bg-white text-dominican-blue-dark rounded-2xl shadow-lg border-t-8 border-dominican-red px-5 py-5 text-xl sm:text-3xl font-black text-center ${readAloud ? 'pr-14' : ''}`}>
+                    {currentShuffledQuestion.text}
+                  </h2>
+                  {readAloud && <SpeakButton speaking={speaking} onClick={handleSpeak} className="absolute -top-1 -right-2" />}
+                </div>
               )}
 
               {!showAnswer && (
@@ -661,6 +709,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                   autoPlay
                   muted={isMuted}
                   largeImage={imageAnswers}
+                  hold={audioWaits}
                 />
               )}
 
@@ -698,6 +747,7 @@ const SinglePlayerGame: React.FC<SinglePlayerGameProps> = ({
                       imageUrl={currentShuffledQuestion.shuffledOptionImages[index]}
                       onClick={() => handleAnswerSelect(index)}
                       disabled={showAnswer}
+                      speaking={spokenId === index}
                       className={`active:scale-95 ${
                         !showAnswer
                           ? 'hover:brightness-110 hover:-translate-y-0.5'

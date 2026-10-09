@@ -219,14 +219,15 @@ export const gameHelpers = {
   },
 
   // Crear un nuevo juego
-  createGame: async (title: string, description: string, userId: string) => {
+  createGame: async (title: string, description: string, userId: string, readAloud = false) => {
     const { data, error } = await db
       .from('games')
       .insert([
         {
           title,
           description,
-          created_by_user: userId
+          created_by_user: userId,
+          read_aloud: readAloud
         }
       ])
       .select()
@@ -235,7 +236,7 @@ export const gameHelpers = {
   },
 
   // Actualizar un juego existente
-  updateGame: async (gameId: string, gameData: { title?: string; description?: string }) => {
+  updateGame: async (gameId: string, gameData: { title?: string; description?: string; read_aloud?: boolean }) => {
     try {
       const { data, error } = await db
         .from('games')

@@ -17,6 +17,8 @@ export interface Game {
   created_at: string
   updated_at: string
   created_by_user?: string
+  // La app lee en voz alta las preguntas y respuestas (para niños que aún no leen)
+  read_aloud?: boolean
   questions?: Question[]
 }
 
