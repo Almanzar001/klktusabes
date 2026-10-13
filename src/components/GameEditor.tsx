@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, ArrowLeft, Image as ImageIcon, Music } from 'lucide-react'
+import { Plus, Edit, Trash2, ArrowLeft, Image as ImageIcon, Music, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { gameHelpers } from '../insforge'
 import { Game, Question } from '../types'
 import QuestionEditor from './QuestionEditor'
+import AiTriviaCreator from './AiTriviaCreator'
 import { AnswerThumbnail } from './AnswerTile'
 
 interface GameEditorProps {
@@ -15,6 +16,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
   const [games, setGames] = useState<Game[]>([])
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [showQuestionEditor, setShowQuestionEditor] = useState(false)
+  const [showAiCreator, setShowAiCreator] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -223,6 +225,21 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
     )
   }
 
+  // Crear una trivia completa con IA
+  if (showAiCreator) {
+    return (
+      <AiTriviaCreator
+        onCancel={() => setShowAiCreator(false)}
+        onSaved={async (gameId) => {
+          setShowAiCreator(false)
+          await loadGames()
+          const { data } = await gameHelpers.getGameWithQuestions(gameId)
+          if (data) setSelectedGame(data)
+        }}
+      />
+    )
+  }
+
   // Mostrar editor de preguntas
   if (showQuestionEditor && selectedGame) {
     return (
@@ -243,7 +260,7 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
       {/* Header */}
       <div className="cabecera">
         <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
@@ -251,18 +268,27 @@ const GameEditor: React.FC<GameEditorProps> = ({ onBack }) => {
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
-              <h1 className="font-display text-2xl text-white">
+              <h1 className="font-display text-2xl text-white whitespace-nowrap">
                 Editor de Juegos
               </h1>
             </div>
             
-            <button
-              onClick={() => setShowNewGameForm(true)}
-              className="btn-dominican-secondary py-2 px-4 text-base"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Nuevo Juego
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAiCreator(true)}
+                className="btn-dominican-outline py-2 px-4 text-base whitespace-nowrap"
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                Crear con IA
+              </button>
+              <button
+                onClick={() => setShowNewGameForm(true)}
+                className="btn-dominican-secondary py-2 px-4 text-base whitespace-nowrap"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Nuevo Juego
+              </button>
+            </div>
           </div>
         </div>
       </div>

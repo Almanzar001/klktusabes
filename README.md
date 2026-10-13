@@ -85,7 +85,17 @@ npx @insforge/cli db migrations up --all
 npx @insforge/cli storage create-bucket question-media
 ```
 
-4. La URL del backend está en el campo `oss_host` de `.insforge/project.json`; la anon key se obtiene con:
+4. (Opcional) Para crear trivias con IA a partir de un tema, un PDF o un video de YouTube, guarda en el backend la llave del Model Gateway del proyecto y despliega la función que llama a los modelos:
+
+```bash
+npx @insforge/cli ai setup --env-file .env.local   # deja OPENROUTER_API_KEY en .env.local (no se sube al repositorio)
+npx @insforge/cli secrets add OPENROUTER_API_KEY <valor>
+npx @insforge/cli functions deploy generate-trivia --file functions/generate-trivia.ts
+```
+
+   Solo los creadores pueden usarla y hay un tope de 60 llamadas diarias por persona. Los modelos se pueden cambiar con los secretos `OPENROUTER_CHAT_MODEL`, `OPENROUTER_MATERIAL_MODEL` y `OPENROUTER_VIDEO_MODEL`.
+
+5. La URL del backend está en el campo `oss_host` de `.insforge/project.json`; la anon key se obtiene con:
 
 ```bash
 npx @insforge/cli secrets get ANON_KEY

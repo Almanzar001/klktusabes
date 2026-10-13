@@ -13,6 +13,7 @@
     "@breezystack/lamejs": "^1.2.7",
     "@insforge/sdk": "^1.5.2",
     "lucide-react": "^0.294.0",
+    "pdfjs-dist": "^6.4.299",
     "qrcode": "^1.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

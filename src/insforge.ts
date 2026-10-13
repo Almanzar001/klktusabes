@@ -330,6 +330,32 @@ export const gameHelpers = {
     }
   },
 
+  // Agregar varias preguntas de una vez (por ejemplo, las que escribe la IA)
+  addQuestions: async (gameId: string, questions: any[]) => {
+    try {
+      const { data, error } = await db
+        .from('questions')
+        .insert(questions.map(question => ({ game_id: gameId, ...question })))
+        .select('id')
+
+      if (error) {
+        return { data: null, error }
+      }
+
+      return { data, error: null }
+
+    } catch (error) {
+      console.error('Error in addQuestions:', error)
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : 'Error desconocido al agregar las preguntas',
+          originalError: error
+        }
+      }
+    }
+  },
+
   // Versión directa de addQuestion (se mantiene por compatibilidad)
   addQuestionDirect: async (gameId: string, questionData: any) => {
     try {
