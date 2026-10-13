@@ -24,7 +24,10 @@ export const authHelpers = {
   // Iniciar sesión con Google
   signInWithGoogle: async () => {
     const { data, error } = await insforge.auth.signInWithOAuth('google', {
-      redirectTo: `${window.location.origin}`
+      redirectTo: `${window.location.origin}`,
+      // Sin esto Google entra directo con la cuenta que ya tiene abierta el
+      // teléfono, sin dejar elegir otra
+      additionalParams: { prompt: 'select_account' }
     })
     return { data, error }
   },
