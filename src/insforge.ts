@@ -8,10 +8,28 @@ if (!insforgeUrl || !insforgeAnonKey) {
   throw new Error('Variables de entorno de InsForge no encontradas. Por favor configura VITE_INSFORGE_URL y VITE_INSFORGE_ANON_KEY')
 }
 
+// Las llamadas de inicio de sesión (/api/auth/...) van al mismo dominio de la
+// app, y desde ahí nginx (en producción) o Vite (en desarrollo) las reenvían al
+// backend. Así la cookie que renueva la sesión es del propio sitio: Safari en
+// iPhone y los navegadores que bloquean cookies de otros dominios la guardan, y
+// la sesión no se cierra a los 15 minutos, cuando vence el token. El resto de
+// llamadas va directo al backend.
+const AUTH_PATH = '/api/auth/'
+const backendOrigin = new URL(insforgeUrl).origin
+
+const fetchWithAuthOnSameSite: typeof fetch = (input, init) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (typeof window === 'undefined' || !url.startsWith(backendOrigin + AUTH_PATH)) return fetch(input, init)
+
+  const sameSiteUrl = window.location.origin + url.slice(backendOrigin.length)
+  return fetch(input instanceof Request ? new Request(sameSiteUrl, input) : sameSiteUrl, init)
+}
+
 // Crear cliente de InsForge
 export const insforge = createClient({
   baseUrl: insforgeUrl,
-  anonKey: insforgeAnonKey
+  anonKey: insforgeAnonKey,
+  fetch: fetchWithAuthOnSameSite
 })
 
 const db = insforge.database
